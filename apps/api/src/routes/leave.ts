@@ -116,6 +116,31 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
   } catch(e){return next(e);}
 });
 
+
+leaveRouter.get("/balances", allStaff, async (req, res, next) => {
+  try {
+    const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
+    const employees = await prisma.employee.findMany({
+      where: employeeId ? { id: employeeId } : {},
+      select: { id:true, employeeNumber:true, firstName:true, lastName:true, employmentStatus:true },
+      orderBy: [{ lastName:"asc" },{ firstName:"asc" }], take:1000
+    });
+    const ids = employees.map(e=>e.id);
+    const transactions = await prisma.leaveTransaction.findMany({
+      where: { employeeId: { in: ids } },
+      select: { employeeId:true, category:true, type:true, days:true }
+    });
+    const balances = new Map<string,Record<string,number>>();
+    for(const transaction of transactions){
+      if(transaction.category==="UNPAID") continue;
+      const current=balances.get(transaction.employeeId)??{};
+      current[transaction.category]=(current[transaction.category]??0)+(transaction.type==="DEDUCTION"?-Number(transaction.days):Number(transaction.days));
+      balances.set(transaction.employeeId,current);
+    }
+    return res.json({items:employees.map(employee=>({employee,balances:balances.get(employee.id)??{}}))});
+  }catch(e){return next(e);}
+});
+
 leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
   try {
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { id: true, employeeNumber: true, firstName: true, lastName: true } });
