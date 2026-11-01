@@ -165,15 +165,15 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
     if (!supportingDocument) return res.status(400).json({ error: "A supporting leave form belonging to this employee is required" });
-    const policy = input.category === "UNPAID" ? null : await prisma.leavePolicy.findFirst({
+    const policyCandidates = input.category === "UNPAID" ? [] : await prisma.leavePolicy.findMany({
       where: {
         category: input.category, isActive: true,
         effectiveFrom: { lte: input.firstLeaveDate },
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: input.lastLeaveDate } }],
         AND: [{ OR: [{ employmentType: null }, { employmentType: employee.employmentType }] }]
-      },
-      orderBy: { effectiveFrom: "desc" }
+      }
     });
+    const policy = policyCandidates.sort((a,b) => Number(b.employmentType === employee.employmentType)-Number(a.employmentType === employee.employmentType) || b.effectiveFrom.getTime()-a.effectiveFrom.getTime())[0] ?? null;
     if (input.category !== "UNPAID" && !policy) return res.status(409).json({ error: "No active leave policy covers the selected dates and employee type" });
 
     const transaction = await prisma.$transaction(async tx => {
