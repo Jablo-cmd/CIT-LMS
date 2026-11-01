@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../db";
-import { allowRoles } from "../middleware/auth";
-import { writeAudit } from "../middleware/audit";
+import { prisma } from "../db.js";
+import { allowRoles } from "../middleware/auth.js";
+import { writeAudit } from "../middleware/audit.js";
 
 export const recommendationsRouter = Router();
 recommendationsRouter.use(allowRoles("COMPANY_OWNER", "HR_MANAGER"));
