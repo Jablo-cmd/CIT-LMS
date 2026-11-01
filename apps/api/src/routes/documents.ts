@@ -25,6 +25,25 @@ function validSignature(buffer: Buffer, extension: string) {
 }
 function isSensitiveCategory(category: string) { return category === "IDENTITY_PERSONAL"; }
 
+
+documentsRouter.get("/", allStaff, async (req, res, next) => {
+  try {
+    const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
+    const category = typeof req.query.category === "string" ? req.query.category : undefined;
+    const isAdmin = req.auth!.role === "ADMIN_PERSONNEL";
+    const items = await prisma.employeeDocument.findMany({
+      where: {
+        ...(employeeId ? { employeeId } : {}),
+        ...(category ? { category: category as never } : {}),
+        ...(isAdmin ? { category: { not: "IDENTITY_PERSONAL" }, disciplinary: { none: {} } } : {})
+      },
+      select: { id:true, employeeId:true, title:true, category:true, originalName:true, mimeType:true, sizeBytes:true, description:true, uploadedAt:true, employee:{select:{employeeNumber:true,firstName:true,lastName:true}}, uploadedBy:{select:{fullName:true}} },
+      orderBy: { uploadedAt:"desc" }, take:500
+    });
+    return res.json({items});
+  } catch(e){return next(e);}
+});
+
 documentsRouter.get("/employee/:employeeId", allStaff, async (req, res, next) => {
   try {
     const isHr = req.auth!.role !== "ADMIN_PERSONNEL";
