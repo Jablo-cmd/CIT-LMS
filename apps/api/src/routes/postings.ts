@@ -39,7 +39,7 @@ postingsRouter.post("/departments", hrOnly, async (req, res, next) => {
 postingsRouter.get("/history/:employeeId", allStaff, async (req, res, next) => {
   try {
     const items = await prisma.employmentHistory.findMany({
-      where: { employeeId: req.params.employeeId },
+      where: { employeeId: String(req.params.employeeId) },
       include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } }, recordedBy: { select: { fullName: true } } },
       orderBy: [{ effectiveDate: "desc" }, { recordedAt: "desc" }]
     });
@@ -59,7 +59,7 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
       notes: z.string().max(3000).optional(),
       supportingDocumentId: z.string().min(1)
     }).refine(v => !!v.newPosition || !!v.newDeployedRole || !!v.newPostingId, { message: "A position or posting change is required" }).parse(req.body);
-    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
+    const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const document = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
     if (!document) return res.status(400).json({ error: "A supporting document belonging to this employee is required" });
