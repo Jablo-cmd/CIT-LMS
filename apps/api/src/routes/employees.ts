@@ -13,6 +13,11 @@ const createSchema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   nationality: z.string().trim().max(100).optional(),
+  addressStreet: z.string().max(200).optional(),
+  addressSuburb: z.string().max(120).optional(),
+  addressCity: z.string().max(120).optional(),
+  addressProvince: z.string().max(120).optional(),
+  addressPostalCode: z.string().max(20).optional(),
   phone: z.string().trim().max(40).optional(),
   email: z.string().email().max(254).optional().or(z.literal("")),
   employmentType: z.enum(["PERMANENT", "CONTRACT"]),
@@ -91,6 +96,7 @@ employeesRouter.post("/", allStaff, async (req, res, next) => {
       return res.status(403).json({ error: "Only HR or the Company Owner may assign an employee's position or posting" });
     }
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
+    if (input.currentPostingId && !(await prisma.postingSite.findUnique({ where: { id: input.currentPostingId } }))) return res.status(400).json({ error: "Posting site not found" });
     if (input.workingScheduleId && !(await prisma.workingSchedule.findUnique({ where: { id: input.workingScheduleId } }))) return res.status(400).json({ error: "Working schedule not found" });
     const employee = await prisma.$transaction(async tx => {
       const created = await tx.employee.create({ data: { ...input, email: input.email || null } });
