@@ -14,6 +14,7 @@ import { postingsRouter } from "./routes/postings";
 import { overtimeRouter } from "./routes/overtime";
 import { disciplinaryRouter } from "./routes/disciplinary";
 import { recommendationsRouter } from "./routes/recommendations";
+import { documentsRouter } from "./routes/documents";
 import { requireAuth } from "./middleware/auth";
 
 export const app = express();
@@ -35,6 +36,7 @@ app.use("/api/postings", postingsRouter);
 app.use("/api/overtime", overtimeRouter);
 app.use("/api/disciplinary", disciplinaryRouter);
 app.use("/api/recommendations", recommendationsRouter);
+app.use("/api/documents", documentsRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof ZodError) return res.status(400).json({ error: "Validation failed", details: err.issues });
   if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") return res.status(409).json({ error: "A record with this unique value already exists" });
