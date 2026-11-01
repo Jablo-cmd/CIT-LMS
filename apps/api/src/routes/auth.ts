@@ -44,6 +44,7 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
 authRouter.post("/logout", requireAuth, async (req, res, next) => {
   try {
     await prisma.auditLog.create({ data: { userId:req.auth!.userId, action:"LOGOUT", entityType:"User", entityId:req.auth!.userId, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
+    await prisma.user.update({ where: { id:req.auth!.userId }, data: { tokenVersion: { increment: 1 } } });
     res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict", path: "/" });
     return res.status(204).end();
   } catch(e){return next(e);}
