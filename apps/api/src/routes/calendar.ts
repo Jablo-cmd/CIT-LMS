@@ -28,9 +28,9 @@ calendarRouter.post("/employees/:employeeId/schedule", hrOnly, async (req, res, 
     const input = z.object({ workingScheduleId: z.string().min(1) }).parse(req.body);
     const schedule = await prisma.workingSchedule.findFirst({ where: { id: input.workingScheduleId, isActive: true } });
     if (!schedule) return res.status(404).json({ error: "Working schedule not found" });
-    const before = await prisma.employee.findUnique({ where: { id: req.params.employeeId }, select: { workingScheduleId: true } });
+    const before = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { workingScheduleId: true } });
     if (!before) return res.status(404).json({ error: "Employee not found" });
-    const employee = await prisma.employee.update({ where: { id: req.params.employeeId }, data: { workingScheduleId: schedule.id }, select: { id: true, employeeNumber: true, workingScheduleId: true } });
+    const employee = await prisma.employee.update({ where: { id: String(req.params.employeeId) }, data: { workingScheduleId: schedule.id }, select: { id: true, employeeNumber: true, workingScheduleId: true } });
     await writeAudit(req, "ASSIGN_WORK_SCHEDULE", "Employee", employee.id, before, employee);
     return res.json({ employee });
   } catch (e) { return next(e); }
