@@ -67,10 +67,10 @@ employeesRouter.get("/", allStaff, async (req, res, next) => {
 employeesRouter.get("/:id", allStaff, async (req, res, next) => {
   try {
     const employee = await prisma.employee.findUnique({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       include: {
         department: true, currentPosting: true, workingSchedule: true, nextOfKin: true,
-        history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: true, recordedBy: { select: { fullName:true } } } },
+        history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } }, recordedBy: { select: { fullName:true } } } },
         documents: { where: { disciplinary: { none: {} } }, select: { id:true, title:true, category:true, originalName:true, mimeType:true, sizeBytes:true, description:true, uploadedAt:true, uploadedBy:{select:{fullName:true}} }, orderBy: { uploadedAt: "desc" } }
       }
     });
@@ -141,10 +141,10 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
     const input = updateSchema.parse(req.body);
     const restricted = ["employmentType","employmentStatus","contractStartDate","contractEndDate","departmentId"];
     if (req.auth!.role === "ADMIN_PERSONNEL" && restricted.some(key => key in input)) return res.status(403).json({ error: "This change requires HR Manager or Company Owner permissions" });
-    const before = await prisma.employee.findUnique({ where: { id: req.params.id } });
+    const before = await prisma.employee.findUnique({ where: { id: String(req.params.id) } });
     if (!before) return res.status(404).json({ error: "Employee not found" });
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
-    const employee = await prisma.employee.update({ where: { id: req.params.id }, data: input });
+    const employee = await prisma.employee.update({ where: { id: String(req.params.id) }, data: input });
     await writeAudit(req, "UPDATE", "Employee", employee.id, before, employee);
     return res.json({ employee });
   } catch (error) { return next(error); }
@@ -153,7 +153,7 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
 employeesRouter.post("/:id/next-of-kin", allStaff, async (req, res, next) => {
   try {
     const input = z.object({ fullName:z.string().trim().min(2).max(120), relationship:z.string().trim().min(2).max(80), phone:z.string().trim().min(5).max(40), email:z.string().email().optional(), isPrimary:z.boolean().default(false), notes:z.string().max(1000).optional() }).parse(req.body);
-    const employee = await prisma.employee.findUnique({ where: { id:req.params.id }, select:{ id:true } });
+    const employee = await prisma.employee.findUnique({ where: { id:String(req.params.id) }, select:{ id:true } });
     if (!employee) return res.status(404).json({ error:"Employee not found" });
     const contact = await prisma.$transaction(async tx => {
       if (input.isPrimary) await tx.nextOfKin.updateMany({ where:{ employeeId:employee.id, isPrimary:true }, data:{ isPrimary:false } });
@@ -166,7 +166,7 @@ employeesRouter.post("/:id/next-of-kin", allStaff, async (req, res, next) => {
 
 employeesRouter.delete("/:id/next-of-kin/:contactId", hrOnly, async (req, res, next) => {
   try {
-    const contact = await prisma.nextOfKin.findFirst({ where:{ id:req.params.contactId, employeeId:req.params.id } });
+    const contact = await prisma.nextOfKin.findFirst({ where:{ id:String(req.params.contactId), employeeId:String(req.params.id) } });
     if (!contact) return res.status(404).json({ error:"Next-of-kin contact not found" });
     await prisma.nextOfKin.delete({ where:{ id:contact.id } });
     await writeAudit(req,"DELETE","NextOfKin",contact.id,contact,undefined);
