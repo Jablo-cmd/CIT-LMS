@@ -30,8 +30,8 @@ jobs:
       PORT: 4000
       DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       JWT_ACCESS_SECRET: ci-only-secret-value-long-enough-for-validation-123456
-      WEB_ORIGIN: http://localhost:3000
-      COOKIE_SECURE: "false"
+      WEB_ORIGIN: https://cit-lms-ci.invalid
+      COOKIE_SECURE: "true"
       STORAGE_ROOT: /tmp/cit-lms-storage
       MAX_UPLOAD_BYTES: 10485760
       SMOKE_API_URL: http://127.0.0.1:4000/api
