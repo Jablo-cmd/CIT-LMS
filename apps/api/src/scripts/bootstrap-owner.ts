@@ -11,7 +11,7 @@ function readHidden(question: string): Promise<string> {
     const onData = (chunk: Buffer) => {
       for (const byte of chunk) {
         if (byte === 3) { cleanup(); reject(new Error("Password entry cancelled")); return; }
-        if (byte === 13 || byte === 10) { cleanup(); stdout.write("\\n"); resolve(value); return; }
+        if (byte === 13 || byte === 10) { cleanup(); stdout.write("\n"); resolve(value); return; }
         if (byte === 8 || byte === 127) { value = value.slice(0, -1); continue; }
         if (byte >= 32 && byte <= 126) value += String.fromCharCode(byte);
       }
