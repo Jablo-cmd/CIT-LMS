@@ -7,6 +7,8 @@ on:
 concurrency:
   group: cit-lms-ci-${{ github.ref }}
   cancel-in-progress: true
+permissions:
+  contents: write
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -75,6 +77,18 @@ jobs:
           exit 1
       - name: Run end-to-end API smoke test
         run: npm run smoke:ci --workspace @cit-lms/api
+      - name: Commit verified lockfile and initial migration
+        if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json apps/api/prisma/migrations/
+          if git diff --cached --quiet; then
+            echo "No generated dependency or migration files changed."
+          else
+            git commit -m "build: commit verified lockfile and initial migration [skip ci]"
+            git push origin HEAD:development
+          fi
       - name: Stop API
         if: always()
         run: if [ -f /tmp/cit-lms-api.pid ]; then kill "$(cat /tmp/cit-lms-api.pid)" || true; fi
