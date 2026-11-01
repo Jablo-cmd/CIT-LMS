@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import argon2 from "argon2";
-import { prisma } from "../db";
+import { prisma } from "../db.js";
 
 function readHidden(question: string): Promise<string> {
   return new Promise((resolve, reject) => {
