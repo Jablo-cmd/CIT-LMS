@@ -3,17 +3,11 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { allowRoles } from "../middleware/auth";
 import { writeAudit } from "../middleware/audit";
+import { calculateElapsedHours } from "../services/time-calculation";
+
 
 export const overtimeRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
-
-function hoursBetween(start: string, finish: string) {
-  const [sh, sm] = start.split(":").map(Number);
-  const [fh, fm] = finish.split(":").map(Number);
-  let minutes = fh * 60 + fm - (sh * 60 + sm);
-  if (minutes <= 0) minutes += 24 * 60;
-  return Math.round((minutes / 60) * 100) / 100;
-}
 
 overtimeRouter.get("/", allStaff, async (req, res, next) => {
   try {
@@ -23,7 +17,7 @@ overtimeRouter.get("/", allStaff, async (req, res, next) => {
     const to = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
     const items = await prisma.overtimeEntry.findMany({
       where: { ...(employeeId ? { employeeId } : {}), ...(postingSiteId ? { postingSiteId } : {}), ...(from || to ? { workDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) },
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, capturedBy: { select: { fullName: true } }, documents: true },
+      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, capturedBy: { select: { fullName: true } }, documents: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } },
       orderBy: { workDate: "desc" }, take: 500
     });
     return res.json({ items });
@@ -41,7 +35,7 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
     }).parse(req.body);
     const day = input.workDate.getUTCDay();
     if (day !== 0 && day !== 6) return res.status(400).json({ error: "Weekend overtime entries must be dated on a Saturday or Sunday" });
-    const totalHours = hoursBetween(input.startTime, input.finishTime);
+    const totalHours = calculateElapsedHours(input.startTime, input.finishTime);
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     if (input.documentIds?.length) {
