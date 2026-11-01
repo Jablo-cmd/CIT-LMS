@@ -137,7 +137,6 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
     const before = await prisma.employee.findUnique({ where: { id: req.params.id } });
     if (!before) return res.status(404).json({ error: "Employee not found" });
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
-    if (input.currentPostingId && !(await prisma.postingSite.findUnique({ where: { id: input.currentPostingId } }))) return res.status(400).json({ error: "Posting site not found" });
     const employee = await prisma.employee.update({ where: { id: req.params.id }, data: input });
     await writeAudit(req, "UPDATE", "Employee", employee.id, before, employee);
     return res.json({ employee });
