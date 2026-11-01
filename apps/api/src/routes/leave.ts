@@ -50,6 +50,9 @@ leaveRouter.patch("/policies/:id", hrOnly, async (req, res, next) => {
 leaveRouter.post("/policies", hrOnly, async (req, res, next) => {
   try {
     const input = policySchema.parse(req.body);
+    const existingPolicies = await prisma.leavePolicy.findMany({ where: { category: input.category, employmentType: input.employmentType ?? null, isActive: true } });
+    const overlaps = existingPolicies.some(existing => (!existing.effectiveTo || existing.effectiveTo >= input.effectiveFrom) && (!input.effectiveTo || existing.effectiveFrom <= input.effectiveTo));
+    if (overlaps) return res.status(409).json({ error: "This policy period overlaps an existing active policy for the same leave category and employment type. Close the previous period first." });
     const policy = await prisma.leavePolicy.create({ data: { ...input, createdById: req.auth!.userId } });
     await writeAudit(req, "CREATE", "LeavePolicy", policy.id, undefined, policy);
     return res.status(201).json({ policy });
