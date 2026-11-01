@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateElapsedHours } from "./time-calculation";
+import { calculateElapsedHours } from "./time-calculation.js";
 
 describe("calculateElapsedHours", () => {
   it("calculates a normal same-day shift", () => expect(calculateElapsedHours("09:00","17:30")).toBe(8.5));
