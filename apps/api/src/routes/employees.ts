@@ -38,7 +38,7 @@ employeesRouter.get("/", allStaff, async (req, res, next) => {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
     const postingId = typeof req.query.postingId === "string" ? req.query.postingId : undefined;
     const page = Math.max(1, Number(req.query.page) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+    const pageSize = Math.min(500, Math.max(1, Number(req.query.pageSize) || 25));
     const where = {
       ...(status ? { employmentStatus: status as "ACTIVE" | "SUSPENDED" | "RESIGNED" | "DISMISSED" | "DECEASED" } : {}),
       ...(postingId ? { currentPostingId: postingId } : {}),
@@ -50,11 +50,18 @@ employeesRouter.get("/", allStaff, async (req, res, next) => {
         { currentPosting: { name: { contains: q, mode: "insensitive" as const } } }
       ] } : {})
     };
-    const isAdmin = req.auth!.role === "ADMIN_PERSONNEL";
     const [items, total] = await Promise.all([
-      isAdmin
-        ? prisma.employee.findMany({ where, select: { id:true, employeeNumber:true, firstName:true, lastName:true, employmentType:true, employmentStatus:true, originalHireDate:true, currentPosition:true, deployedRole:true, photoUpdatedAt:true, department:true, currentPosting:true }, orderBy: [{ lastName:"asc" },{ firstName:"asc" }], skip:(page-1)*pageSize, take:pageSize })
-        : prisma.employee.findMany({ where, include: { department:true, currentPosting:true }, orderBy: [{ lastName:"asc" },{ firstName:"asc" }], skip:(page-1)*pageSize, take:pageSize }),
+      prisma.employee.findMany({
+        where,
+        select: {
+          id:true, employeeNumber:true, firstName:true, lastName:true,
+          employmentType:true, employmentStatus:true, originalHireDate:true,
+          currentPosition:true, deployedRole:true, photoUpdatedAt:true,
+          department:{select:{name:true}}, currentPosting:{select:{id:true,name:true,code:true}}
+        },
+        orderBy: [{ lastName:"asc" },{ firstName:"asc" }],
+        skip:(page-1)*pageSize, take:pageSize
+      }),
       prisma.employee.count({ where })
     ]);
     return res.json({ items, pagination: { page, pageSize, total, pages: Math.ceil(total / pageSize) } });
