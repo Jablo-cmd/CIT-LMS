@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../db";
-import { allowRoles } from "../middleware/auth";
-import { writeAudit } from "../middleware/audit";
-import { calculateElapsedHours } from "../services/time-calculation";
+import { prisma } from "../db.js";
+import { allowRoles } from "../middleware/auth.js";
+import { writeAudit } from "../middleware/audit.js";
+import { calculateElapsedHours } from "../services/time-calculation.js";
 
 
 export const overtimeRouter = Router();
