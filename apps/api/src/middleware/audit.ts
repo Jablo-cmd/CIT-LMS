@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { prisma } from "../db";
+import { prisma } from "../db.js";
 
 export async function writeAudit(req: Request, action: string, entityType: string, entityId?: string, beforeData?: unknown, afterData?: unknown) {
   await prisma.auditLog.create({
