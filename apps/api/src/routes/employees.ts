@@ -56,7 +56,7 @@ employeesRouter.get("/", allStaff, async (req, res, next) => {
     const isAdmin = req.auth!.role === "ADMIN_PERSONNEL";
     const [items, total] = await Promise.all([
       isAdmin
-        ? prisma.employee.findMany({ where, select: { id:true, employeeNumber:true, firstName:true, lastName:true, employmentType:true, employmentStatus:true, originalHireDate:true, currentPosition:true, deployedRole:true, photoPath:true, photoUpdatedAt:true, department:true, currentPosting:true }, orderBy: [{ lastName:"asc" },{ firstName:"asc" }], skip:(page-1)*pageSize, take:pageSize })
+        ? prisma.employee.findMany({ where, select: { id:true, employeeNumber:true, firstName:true, lastName:true, employmentType:true, employmentStatus:true, originalHireDate:true, currentPosition:true, deployedRole:true, photoUpdatedAt:true, department:true, currentPosting:true }, orderBy: [{ lastName:"asc" },{ firstName:"asc" }], skip:(page-1)*pageSize, take:pageSize })
         : prisma.employee.findMany({ where, include: { department:true, currentPosting:true }, orderBy: [{ lastName:"asc" },{ firstName:"asc" }], skip:(page-1)*pageSize, take:pageSize }),
       prisma.employee.count({ where })
     ]);
@@ -71,13 +71,14 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
       include: {
         department: true, currentPosting: true, workingSchedule: true, nextOfKin: true,
         history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: true, recordedBy: { select: { fullName:true } } } },
-        documents: { where: { disciplinary: { none: {} } }, orderBy: { uploadedAt: "desc" } }
+        documents: { where: { disciplinary: { none: {} } }, select: { id:true, title:true, category:true, originalName:true, mimeType:true, sizeBytes:true, description:true, uploadedAt:true, uploadedBy:{select:{fullName:true}} }, orderBy: { uploadedAt: "desc" } }
       }
     });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
+    const { photoPath: _privatePhotoPath, ...publicEmployee } = employee;
     if (req.auth!.role === "ADMIN_PERSONNEL") {
       const safe = {
-        ...employee,
+        ...publicEmployee,
         nationality: null, addressStreet: null, addressSuburb: null, addressCity: null,
         addressProvince: null, addressPostalCode: null, phone: null, email: null,
         nextOfKin: [],
@@ -85,7 +86,7 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
       };
       return res.json({ employee: safe });
     }
-    return res.json({ employee });
+    return res.json({ employee: publicEmployee });
   } catch (error) { return next(error); }
 });
 
