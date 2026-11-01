@@ -124,6 +124,28 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
   }
 });
 
+
+leaveRouter.post("/balances/:employeeId/adjust", hrOnly, async (req, res, next) => {
+  try {
+    const input = z.object({
+      category: z.enum(["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY_PARENTAL","UNPAID","STUDY","OTHER"]),
+      days: z.number().refine(v => v !== 0),
+      reason: z.string().trim().min(5).max(2000)
+    }).parse(req.body);
+    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
+    if (!employee) return res.status(404).json({ error: "Employee not found" });
+    const transaction = await prisma.$transaction(async tx => {
+      const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: employee.id, category: input.category } });
+      const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+      return tx.leaveTransaction.create({
+        data: { employeeId: employee.id, category: input.category, type: "ADJUSTMENT", days: input.days, balanceBefore: balance, balanceAfter: balance + input.days, reason: input.reason, capturedById: req.auth!.userId }
+      });
+    }, { isolationLevel: "Serializable" });
+    await writeAudit(req, "LEAVE_BALANCE_ADJUSTMENT", "LeaveTransaction", transaction.id, undefined, transaction);
+    return res.status(201).json({ transaction });
+  } catch (e) { return next(e); }
+});
+
 leaveRouter.post("/transactions/:id/adjust", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({ days: z.number().refine(v => v !== 0), reason: z.string().trim().min(5).max(2000) }).parse(req.body);
