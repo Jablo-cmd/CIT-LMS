@@ -268,6 +268,7 @@ model LeaveTransaction {
   capturedBy         User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
   documents          EmployeeDocument[]
   @@index([employeeId, category, capturedAt])
+  @@unique([employeeId, category, referenceNumber])
 }
 
 model OvertimeEntry {
