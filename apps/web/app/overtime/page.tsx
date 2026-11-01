@@ -15,7 +15,7 @@ export default function OvertimePage(){
   async function load(){
     setError("");
     try{
-      const [e,s,t]=await Promise.all([api<{items:Employee[]}>("/employees?pageSize=100"),api<{items:Site[]}>("/postings/sites"),api<{items:Entry[]}>("/overtime")]);
+      const [e,s,t]=await Promise.all([api<{items:Employee[]}>("/employees?pageSize=500"),api<{items:Site[]}>("/postings/sites"),api<{items:Entry[]}>("/overtime")]);
       setEmployees(e.items);setSites(s.items);setItems(t.items);
       if(!form.employeeId&&e.items[0])setForm(f=>({...f,employeeId:e.items[0].id}));
     }catch(err){setError(err instanceof Error?err.message:"Unable to load overtime register");}
