@@ -61,6 +61,9 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
     }).refine(v => !!v.newPosition || !!v.newDeployedRole || !!v.newPostingId, { message: "A position or posting change is required" }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
+    if (input.effectiveDate < employee.originalHireDate) return res.status(400).json({ error: "An employment history event cannot predate the original CIT hire date" });
+    const latestEvent = await prisma.employmentHistory.findFirst({ where: { employeeId: employee.id }, orderBy: [{ effectiveDate:"desc" },{ recordedAt:"desc" }], select: { effectiveDate:true } });
+    if (latestEvent && input.effectiveDate < latestEvent.effectiveDate) return res.status(409).json({ error: "Assignment events must be recorded in chronological order. Correct the existing history with HR before adding an earlier event." });
     const document = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
     if (!document) return res.status(400).json({ error: "A supporting document belonging to this employee is required" });
     if (input.newPostingId) {
