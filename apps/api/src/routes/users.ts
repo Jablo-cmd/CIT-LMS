@@ -39,7 +39,7 @@ usersRouter.post("/:id/reset-password", async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id:true,email:true,fullName:true } });
     if (!user) return res.status(404).json({ error: "User not found" });
     const passwordHash = await argon2.hash(input.newPassword);
-    await prisma.user.update({ where: { id:user.id }, data: { passwordHash } });
+    await prisma.user.update({ where: { id:user.id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
     await writeAudit(req, "RESET_PASSWORD", "User", user.id, undefined, { id:user.id,email:user.email });
     return res.json({ message: "Password reset. Provide the new password securely to the user." });
   } catch(e){return next(e);}
