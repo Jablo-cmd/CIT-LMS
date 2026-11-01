@@ -51,13 +51,14 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({
       newPosition: z.string().trim().max(120).optional(),
+      newDeployedRole: z.string().trim().max(120).optional(),
       newPostingId: z.string().optional(),
       effectiveDate: z.coerce.date(),
       reason: z.string().trim().min(5).max(1000),
       managerName: z.string().trim().max(120).optional(),
       notes: z.string().max(3000).optional(),
       supportingDocumentId: z.string().min(1)
-    }).refine(v => !!v.newPosition || !!v.newPostingId, { message: "A position or posting change is required" }).parse(req.body);
+    }).refine(v => !!v.newPosition || !!v.newDeployedRole || !!v.newPostingId, { message: "A position or posting change is required" }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const document = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
@@ -71,6 +72,8 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
         data: {
           employeeId: employee.id, previousPosition: employee.currentPosition,
           newPosition: input.newPosition ?? employee.currentPosition,
+          previousDeployedRole: employee.deployedRole,
+          newDeployedRole: input.newDeployedRole ?? employee.deployedRole,
           previousPostingId: employee.currentPostingId,
           newPostingId: input.newPostingId ?? employee.currentPostingId,
           effectiveDate: input.effectiveDate, reason: input.reason,
@@ -81,6 +84,7 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
       });
       await tx.employee.update({ where: { id: employee.id }, data: {
         ...(input.newPosition ? { currentPosition: input.newPosition } : {}),
+        ...(input.newDeployedRole ? { deployedRole: input.newDeployedRole } : {}),
         ...(input.newPostingId ? { currentPostingId: input.newPostingId } : {})
       } });
       return created;
