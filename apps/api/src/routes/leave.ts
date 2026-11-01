@@ -28,6 +28,25 @@ leaveRouter.get("/policies", hrOnly, async (_req, res, next) => {
   } catch (e) { return next(e); }
 });
 
+
+leaveRouter.patch("/policies/:id", hrOnly, async (req, res, next) => {
+  try {
+    const input = z.object({ effectiveTo: z.coerce.date() }).parse(req.body);
+    const policy = await prisma.leavePolicy.findUnique({ where: { id: String(req.params.id) } });
+    if (!policy) return res.status(404).json({ error: "Leave policy not found" });
+    if (input.effectiveTo < policy.effectiveFrom) return res.status(400).json({ error: "Policy end date cannot precede its start date" });
+    const latestLeave = await prisma.leaveTransaction.findFirst({
+      where: { policyId: policy.id, lastLeaveDate: { not: null } },
+      orderBy: { lastLeaveDate: "desc" },
+      select: { lastLeaveDate: true }
+    });
+    if (latestLeave?.lastLeaveDate && input.effectiveTo < latestLeave.lastLeaveDate) return res.status(409).json({ error: "Policy cannot end before leave already recorded against it" });
+    const updated = await prisma.leavePolicy.update({ where: { id: policy.id }, data: { effectiveTo: input.effectiveTo } });
+    await writeAudit(req, "CLOSE_LEAVE_POLICY_PERIOD", "LeavePolicy", updated.id, policy, updated);
+    return res.json({ policy: updated });
+  } catch(e){return next(e);}
+});
+
 leaveRouter.post("/policies", hrOnly, async (req, res, next) => {
   try {
     const input = policySchema.parse(req.body);
@@ -66,7 +85,15 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
       }
       for (const policy of latestByCategory.values()) {
         if (policy.category === "UNPAID") continue;
-        const days = policy.accrualPerMonth ? Number(policy.accrualPerMonth) : policy.entitlementDays ? Number(policy.entitlementDays) / 12 : 0;
+        const monthlyRate = policy.accrualPerMonth ? Number(policy.accrualPerMonth) : policy.entitlementDays ? Number(policy.entitlementDays) / 12 : 0;
+        const employeeStart = employee.contractStartDate && employee.contractStartDate > employee.originalHireDate ? employee.contractStartDate : employee.originalHireDate;
+        const periodStart = new Date(Math.max(monthStart.getTime(), policy.effectiveFrom.getTime(), employeeStart.getTime()));
+        const endCandidates = [monthEnd, ...(policy.effectiveTo ? [policy.effectiveTo] : []), ...(employee.contractEndDate ? [employee.contractEndDate] : [])];
+        const periodEnd = new Date(Math.min(...endCandidates.map(d => d.getTime())));
+        if (monthlyRate <= 0 || periodEnd < periodStart) continue;
+        const daysInMonth = new Date(Date.UTC(input.year, input.month, 0)).getUTCDate();
+        const coveredDays = Math.floor((Date.UTC(periodEnd.getUTCFullYear(),periodEnd.getUTCMonth(),periodEnd.getUTCDate())-Date.UTC(periodStart.getUTCFullYear(),periodStart.getUTCMonth(),periodStart.getUTCDate()))/86400000)+1;
+        const days = Math.round(monthlyRate * coveredDays / daysInMonth * 100) / 100;
         if (days <= 0) continue;
         const referenceNumber = `ACCRUAL-${input.year}-${String(input.month).padStart(2,"0")}-${employee.id}-${policy.id}`;
         const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId: employee.id, category: policy.category, referenceNumber } });
