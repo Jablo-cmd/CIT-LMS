@@ -32,6 +32,19 @@ usersRouter.post("/", async (req, res, next) => {
   } catch (e) { return next(e); }
 });
 
+
+usersRouter.post("/:id/reset-password", async (req, res, next) => {
+  try {
+    const input = z.object({ newPassword: z.string().min(14).max(200) }).parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id:true,email:true,fullName:true } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const passwordHash = await argon2.hash(input.newPassword);
+    await prisma.user.update({ where: { id:user.id }, data: { passwordHash } });
+    await writeAudit(req, "RESET_PASSWORD", "User", user.id, undefined, { id:user.id,email:user.email });
+    return res.json({ message: "Password reset. Provide the new password securely to the user." });
+  } catch(e){return next(e);}
+});
+
 usersRouter.patch("/:id", async (req, res, next) => {
   try {
     const input = z.object({ isActive: z.boolean().optional(), role: z.enum(["COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL"]).optional(), fullName: z.string().trim().min(2).max(120).optional() }).refine(v => Object.keys(v).length > 0).parse(req.body);
