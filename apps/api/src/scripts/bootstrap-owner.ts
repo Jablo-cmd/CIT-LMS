@@ -39,7 +39,7 @@ async function main() {
     email = (await rl.question("Company Owner email: ")).trim().toLowerCase();
   } finally { rl.close(); }
   const password = await readHidden("Company Owner password (minimum 14 characters): ");
-  if (fullName.length < 2 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || password.length < 14) {
+  if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 14) {
     throw new Error("Invalid name, email, or password length.");
   }
   const passwordHash = await argon2.hash(password);
