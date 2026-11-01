@@ -156,12 +156,15 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       lastLeaveDate: z.coerce.date(),
       formSubmissionDate: z.coerce.date().optional(),
       reason: z.string().max(2000).optional(),
-      referenceNumber: z.string().max(100).optional()
+      referenceNumber: z.string().max(100).optional(),
+      supportingDocumentId: z.string().min(1)
     }).parse(req.body);
     const days = await calculateWorkingLeaveDays(input.employeeId, input.firstLeaveDate, input.lastLeaveDate);
     if (days < 1) return res.status(400).json({ error: "The selected dates contain no scheduled working days" });
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
+    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
+    if (!supportingDocument) return res.status(400).json({ error: "A supporting leave form belonging to this employee is required" });
     const policy = input.category === "UNPAID" ? null : await prisma.leavePolicy.findFirst({
       where: {
         category: input.category, isActive: true,
@@ -183,9 +186,9 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
           type: "DEDUCTION", firstLeaveDate: input.firstLeaveDate, lastLeaveDate: input.lastLeaveDate,
           formSubmissionDate: input.formSubmissionDate, days, balanceBefore: input.category === "UNPAID" ? null : balance,
           balanceAfter: input.category === "UNPAID" ? null : balance - days, reason: input.reason, referenceNumber: input.referenceNumber,
-          capturedById: req.auth!.userId
+          capturedById: req.auth!.userId, documents: { connect: [{ id: supportingDocument.id }] }
         },
-        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } } }
+        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, originalName:true } } }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "CREATE", "LeaveTransaction", transaction.id, undefined, transaction);
