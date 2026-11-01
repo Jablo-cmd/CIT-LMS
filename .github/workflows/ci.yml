@@ -16,6 +16,31 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema apps/api/prisma/schema.prisma
+        env:
+          DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
+      - name: Generate initial migration SQL for review
+        run: |
+          mkdir -p apps/api/prisma/migrations/20261101000000_init
+          npx prisma migrate diff --from-empty --to-schema-datamodel apps/api/prisma/schema.prisma --script > apps/api/prisma/migrations/20261101000000_init/migration.sql
+          printf 'provider = "postgresql"\n' > apps/api/prisma/migrations/migration_lock.toml
+        env:
+          DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
+      - name: Inspect dependency advisories
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e "const a=require('./npm-audit.json'); for (const [n,v] of Object.entries(a.vulnerabilities||{})) console.log(n, v.severity, 'range='+v.range, 'fix='+JSON.stringify(v.fixAvailable))"
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cit-lms-verification-artifacts
+          path: |
+            package-lock.json
+            npm-audit.json
+            apps/api/prisma/migrations/
+          if-no-files-found: warn
+          retention-days: 7
