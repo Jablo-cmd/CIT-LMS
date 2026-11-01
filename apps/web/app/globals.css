@@ -10,3 +10,5 @@
 @media(max-width:900px){.profile-grid,.two-panel{grid-template-columns:1fr}.profile-card{max-width:none}.profile-photo{margin-left:auto;margin-right:auto}}@media(max-width:560px){.detail-grid,.two-col{grid-template-columns:1fr}.history-item{grid-template-columns:1fr;gap:7px}}
 
 .module-form{display:grid;gap:15px}.module-form>.form-grid{margin-bottom:2px}.overtime-total{text-align:right}.overtime-total strong,.overtime-total small{display:block}.overtime-total strong{font-size:19px;color:var(--navy)}.overtime-total small{font-size:10px;color:var(--muted)}.toolbar .form-field{min-width:150px}
+
+.report-stats{margin:0 0 16px}.report-bars{display:grid;gap:15px;padding:12px 0}.report-bars>div{display:grid;grid-template-columns:150px 1fr 90px;gap:12px;align-items:center;font-size:11px}.report-bars strong{text-align:right;font-size:11px}.bar{height:9px;background:#edf1f6;border-radius:10px;overflow:hidden}.bar i{display:block;height:100%;background:var(--cyan);border-radius:10px}.year-filter{display:flex;gap:8px}.year-filter input{width:90px;border:1px solid var(--line);border-radius:7px;padding:8px}
