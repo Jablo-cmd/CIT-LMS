@@ -26,9 +26,6 @@ const createSchema = z.object({
   contractStartDate: z.coerce.date().optional(),
   contractEndDate: z.coerce.date().optional(),
   departmentId: z.string().optional(),
-  currentPosition: z.string().trim().max(120).optional(),
-  currentPostingId: z.string().optional(),
-  deployedRole: z.string().trim().max(120).optional(),
   workingScheduleId: z.string().optional()
 }).superRefine((v, ctx) => {
   if (v.employmentType === "CONTRACT" && !v.contractStartDate) ctx.addIssue({ code: "custom", path: ["contractStartDate"], message: "Contract start date is required" });
@@ -93,24 +90,10 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
 employeesRouter.post("/", allStaff, async (req, res, next) => {
   try {
     const input = createSchema.parse(req.body);
-    if (req.auth!.role === "ADMIN_PERSONNEL" && (input.currentPosition || input.currentPostingId || input.deployedRole)) {
-      return res.status(403).json({ error: "Only HR or the Company Owner may assign an employee's position or posting" });
-    }
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
-    if (input.currentPostingId && !(await prisma.postingSite.findUnique({ where: { id: input.currentPostingId } }))) return res.status(400).json({ error: "Posting site not found" });
     if (input.workingScheduleId && !(await prisma.workingSchedule.findUnique({ where: { id: input.workingScheduleId } }))) return res.status(400).json({ error: "Working schedule not found" });
     const employee = await prisma.$transaction(async tx => {
       const created = await tx.employee.create({ data: { ...input, email: input.email || null } });
-      if (input.currentPosition || input.currentPostingId || input.deployedRole) {
-        await tx.employmentHistory.create({
-          data: {
-            employeeId: created.id, newPosition: input.currentPosition,
-            newPostingId: input.currentPostingId, newDeployedRole: input.deployedRole,
-            effectiveDate: input.originalHireDate, reason: "Initial appointment",
-            recordedById: req.auth!.userId
-          }
-        });
-      }
       return created;
     });
     await writeAudit(req, "CREATE", "Employee", employee.id, undefined, employee);
