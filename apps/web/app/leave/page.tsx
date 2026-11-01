@@ -11,7 +11,7 @@ const categories=["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY
 const label=(s:string)=>s.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 export default function LeavePage(){
   const [employees,setEmployees]=useState<Employee[]>([]);const [policies,setPolicies]=useState<Policy[]>([]);const [items,setItems]=useState<Transaction[]>([]);
-  const [role,setRole]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);
+  const [role,setRole]=useState("");const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
   const [employeeId,setEmployeeId]=useState("");const [category,setCategory]=useState("ANNUAL");const [first,setFirst]=useState("");const [last,setLast]=useState("");const [formDate,setFormDate]=useState("");
   const [preview,setPreview]=useState<number|null>(null);const [reason,setReason]=useState("");const [ref,setRef]=useState("");
   const [opening,setOpening]=useState({employeeId:"",category:"ANNUAL",days:"",reason:"Opening balance verified against CIT leave records"});
@@ -43,7 +43,8 @@ export default function LeavePage(){
     catch(e){setError(e instanceof Error?e.message:"Could not adjust leave balance");}
     finally{setBusy(false);}
   }
-  async function runAccrual(){setBusy(true);setError("");try{const now=new Date();const result=await api<{entriesCreated:number}>("/leave/accruals/run",{method:"POST",body:JSON.stringify({year:now.getFullYear(),month:now.getMonth()+1})});setError(`Monthly accrual completed: ${result.entriesCreated} ledger entries created.`);await load();}catch(e){setError(e instanceof Error?e.message:"Could not run monthly accrual");}finally{setBusy(false);}}\n  async function createPolicy(e:FormEvent){
+  async function runAccrual(){setBusy(true);setError("");setNotice("");try{const now=new Date();const result=await api<{entriesCreated:number}>("/leave/accruals/run",{method:"POST",body:JSON.stringify({year:now.getFullYear(),month:now.getMonth()+1})});setNotice(`Monthly accrual completed: ${result.entriesCreated} ledger entries created.`);await load();}catch(e){setError(e instanceof Error?e.message:"Could not run monthly accrual");}finally{setBusy(false);}}
+  async function createPolicy(e:FormEvent){
     e.preventDefault();setBusy(true);setError("");
     try{await api("/leave/policies",{method:"POST",body:JSON.stringify({category:policy.category,name:policy.name,entitlementDays:policy.entitlementDays?Number(policy.entitlementDays):undefined,accrualPerMonth:policy.accrualPerMonth?Number(policy.accrualPerMonth):undefined,employmentType:policy.employmentType||undefined,effectiveFrom:policy.effectiveFrom,effectiveTo:policy.effectiveTo||undefined,carryOverLimit:policy.carryOverLimit?Number(policy.carryOverLimit):undefined})});await load();}
     catch(e){setError(e instanceof Error?e.message:"Could not save leave policy");}
@@ -51,7 +52,7 @@ export default function LeavePage(){
   }
   return <main className="content">
     <div className="page-heading"><div><p className="eyebrow">HR RECORDS</p><h1>Leave register</h1><p className="lead">Capture leave from submitted paper forms and maintain an auditable balance ledger.</p></div><Link className="back-link" href="/">← Dashboard</Link></div>
-    {error&&<p className="form-error">{error}</p>}
+    {error&&<p className="form-error">{error}</p>}{notice&&<p className="success-message">{notice}</p>}
     <section className="panel record-panel"><div className="panel-heading"><div><p className="eyebrow">MANUAL FORM CAPTURE</p><h2>Record employee leave</h2></div>{role!=="ADMIN_PERSONNEL"&&<button type="button" className="secondary-button" onClick={()=>void runAccrual()} disabled={busy}>Run current-month accrual</button>}</div>
       <form className="module-form" onSubmit={capture}>
         <div className="form-grid"><label className="form-field">Employee<select required value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">Select employee</option>{employees.map(x=><option key={x.id} value={x.id}>{x.employeeNumber} · {x.firstName} {x.lastName}</option>)}</select></label>
