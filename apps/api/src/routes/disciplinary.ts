@@ -12,7 +12,7 @@ disciplinaryRouter.get("/", async (req, res, next) => {
     const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
     const items = await prisma.disciplinaryRecord.findMany({
       where: employeeId ? { employeeId } : {},
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } }, documents: true },
+      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } }, documents: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } },
       orderBy: { hearingDate: "desc" }, take: 300
     });
     return res.json({ items });
@@ -36,7 +36,7 @@ disciplinaryRouter.post("/", async (req, res, next) => {
     }
     const record = await prisma.disciplinaryRecord.create({
       data: { ...input, capturedById: req.auth!.userId, documents: input.documentIds?.length ? { connect: input.documentIds.map(id => ({ id })) } : undefined },
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: true }
+      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } }
     });
     await writeAudit(req, "CREATE", "DisciplinaryRecord", record.id, undefined, record);
     return res.status(201).json({ record });
