@@ -17,7 +17,7 @@ authRouter.post("/login", async (req, res, next) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    const token = jwt.sign({ role: user.role }, config.JWT_ACCESS_SECRET, { subject: user.id, expiresIn: config.JWT_ACCESS_TTL as jwt.SignOptions["expiresIn"] });
+    const token = jwt.sign({ role: user.role, tokenVersion: user.tokenVersion }, config.JWT_ACCESS_SECRET, { subject: user.id, expiresIn: config.JWT_ACCESS_TTL as jwt.SignOptions["expiresIn"] });
     res.cookie("cit_session", token, {
       httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict",
       maxAge: 15 * 60 * 1000, path: "/"
@@ -33,7 +33,7 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
     const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
     if (!user || !(await argon2.verify(user.passwordHash, input.currentPassword))) return res.status(400).json({ error: "Current password is incorrect" });
     const passwordHash = await argon2.hash(input.newPassword);
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
     await prisma.auditLog.create({ data: { userId: user.id, action: "CHANGE_PASSWORD", entityType: "User", entityId: user.id, ipAddress: req.ip, userAgent: req.get("user-agent")?.slice(0,500) } });
     res.clearCookie("cit_session", { httpOnly:true, secure:config.COOKIE_SECURE==="true", sameSite:"strict", path:"/" });
     return res.json({ message: "Password changed. Please sign in again." });
