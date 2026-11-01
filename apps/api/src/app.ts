@@ -8,6 +8,12 @@ import { ZodError } from "zod";
 import { config } from "./config";
 import { authRouter } from "./routes/auth";
 import { employeesRouter } from "./routes/employees";
+import { usersRouter } from "./routes/users";
+import { leaveRouter } from "./routes/leave";
+import { postingsRouter } from "./routes/postings";
+import { overtimeRouter } from "./routes/overtime";
+import { disciplinaryRouter } from "./routes/disciplinary";
+import { recommendationsRouter } from "./routes/recommendations";
 import { requireAuth } from "./middleware/auth";
 
 export const app = express();
@@ -21,7 +27,14 @@ app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
 app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "cit-lms-api" }));
 app.use("/api/auth", authRouter);
-app.use("/api/employees", requireAuth, employeesRouter);
+app.use("/api", requireAuth);
+app.use("/api/users", usersRouter);
+app.use("/api/employees", employeesRouter);
+app.use("/api/leave", leaveRouter);
+app.use("/api/postings", postingsRouter);
+app.use("/api/overtime", overtimeRouter);
+app.use("/api/disciplinary", disciplinaryRouter);
+app.use("/api/recommendations", recommendationsRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof ZodError) return res.status(400).json({ error: "Validation failed", details: err.issues });
   if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") return res.status(409).json({ error: "A record with this unique value already exists" });
