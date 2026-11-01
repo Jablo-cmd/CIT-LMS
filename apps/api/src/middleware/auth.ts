@@ -10,8 +10,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (!token) return res.status(401).json({ error: "Authentication required" });
     const payload = jwt.verify(token, config.JWT_ACCESS_SECRET) as jwt.JwtPayload;
     if (typeof payload.sub !== "string") return res.status(401).json({ error: "Invalid session" });
-    const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, email: true, role: true, isActive: true } });
-    if (!user || !user.isActive) return res.status(401).json({ error: "Account unavailable" });
+    const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, email: true, role: true, isActive: true, tokenVersion: true } });
+    if (!user || !user.isActive || payload.tokenVersion !== user.tokenVersion) return res.status(401).json({ error: "Account unavailable or session expired" });
     req.auth = { userId: user.id, email: user.email, role: user.role };
     return next();
   } catch {
