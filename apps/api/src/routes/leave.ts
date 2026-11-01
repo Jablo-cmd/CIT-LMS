@@ -54,10 +54,9 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
     const employees = await prisma.employee.findMany({
       where: { employmentStatus: "ACTIVE", originalHireDate: { lte: monthEnd }, OR: [{ contractEndDate: null }, { contractEndDate: { gte: monthStart } }] }
     });
-    const policies = await prisma.leavePolicy.findMany({
-      where: { isActive: true, effectiveFrom: { lte: monthEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthStart } }] },
-      orderBy: { effectiveFrom: "desc" }
-    });
+    const policies = (await prisma.leavePolicy.findMany({
+      where: { isActive: true, effectiveFrom: { lte: monthEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthStart } }] }
+    })).sort((a,b) => Number(!!b.employmentType)-Number(!!a.employmentType) || b.effectiveFrom.getTime()-a.effectiveFrom.getTime());
     const results: Array<{employeeId:string;category:string;days:number;transactionId:string}> = [];
     for (const employee of employees) {
       const latestByCategory = new Map<string, typeof policies[number]>();
