@@ -22,9 +22,10 @@ jobs:
           DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       - name: Generate initial migration SQL for review
         run: |
-          mkdir -p apps/api/prisma/migrations/20261101000000_init
-          npx prisma migrate diff --from-empty --to-schema-datamodel apps/api/prisma/schema.prisma --script > apps/api/prisma/migrations/20261101000000_init/migration.sql
-          printf 'provider = "postgresql"\n' > apps/api/prisma/migrations/migration_lock.toml
+          cd apps/api
+          mkdir -p prisma/migrations/20261101000000_init
+          npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > prisma/migrations/20261101000000_init/migration.sql
+          printf 'provider = "postgresql"\n' > prisma/migrations/migration_lock.toml
         env:
           DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       - name: Inspect dependency advisories
