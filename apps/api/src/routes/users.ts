@@ -35,14 +35,14 @@ usersRouter.post("/", async (req, res, next) => {
 usersRouter.patch("/:id", async (req, res, next) => {
   try {
     const input = z.object({ isActive: z.boolean().optional(), role: z.enum(["COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL"]).optional(), fullName: z.string().trim().min(2).max(120).optional() }).refine(v => Object.keys(v).length > 0).parse(req.body);
-    if (req.params.id === req.auth!.userId && input.isActive === false) return res.status(400).json({ error: "You cannot deactivate your own account" });
-    const before = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, email: true, fullName: true, role: true, isActive: true } });
+    if (String(req.params.id) === req.auth!.userId && input.isActive === false) return res.status(400).json({ error: "You cannot deactivate your own account" });
+    const before = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id: true, email: true, fullName: true, role: true, isActive: true } });
     if (!before) return res.status(404).json({ error: "User not found" });
     if (before.role === "COMPANY_OWNER" && (input.role && input.role !== "COMPANY_OWNER" || input.isActive === false)) {
       const activeOwners = await prisma.user.count({ where: { role: "COMPANY_OWNER", isActive: true } });
       if (activeOwners <= 1) return res.status(409).json({ error: "At least one active Company Owner account must remain" });
     }
-    const user = await prisma.user.update({ where: { id: req.params.id }, data: input, select: { id: true, email: true, fullName: true, role: true, isActive: true } });
+    const user = await prisma.user.update({ where: { id: String(req.params.id) }, data: input, select: { id: true, email: true, fullName: true, role: true, isActive: true } });
     await writeAudit(req, "UPDATE", "User", user.id, before, user);
     return res.json({ user });
   } catch (e) { return next(e); }
