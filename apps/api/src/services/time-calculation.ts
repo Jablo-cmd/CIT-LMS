@@ -1,5 +1,5 @@
 export function calculateElapsedHours(start: string, finish: string): number {
-  const timePattern = /^([01]\\d|2[0-3]):[0-5]\\d$/;
+  const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
   if (!timePattern.test(start) || !timePattern.test(finish)) throw new Error("Times must use 24-hour HH:MM format");
   const [startHour, startMinute] = start.split(":").map(Number);
   const [finishHour, finishMinute] = finish.split(":").map(Number);
