@@ -81,6 +81,8 @@ model User {
   overtimeEntries OvertimeEntry[] @relation("OvertimeCapturedBy")
   disciplinaryRecords DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
   recommendations Recommendation[] @relation("RecommendationCapturedBy")
+  leavePoliciesCreated LeavePolicy[] @relation("LeavePolicyCreatedBy")
+  overtimeEntries OvertimeEntry[] @relation("OvertimeCapturedBy")
 }
 
 model Employee {
@@ -106,10 +108,12 @@ model Employee {
   departmentId       String?
   currentPosition    String?
   currentPostingId   String?
+  workingScheduleId  String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   department         Department? @relation(fields: [departmentId], references: [id])
   currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id])
+  workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id])
   history            EmploymentHistory[]
   nextOfKin          NextOfKin[]
   documents          EmployeeDocument[]
@@ -202,6 +206,25 @@ model EmployeeDocument {
   recommendations Recommendation[]
 }
 
+model WorkingSchedule {
+  id          String @id @default(cuid())
+  name        String @unique
+  workingDays Int[]
+  description String?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  employees   Employee[]
+}
+
+model PublicHoliday {
+  id          String @id @default(cuid())
+  date        DateTime @unique
+  name        String
+  countryCode String @default("ZA")
+  createdAt   DateTime @default(now())
+  @@index([date, countryCode])
+}
+
 model LeavePolicy {
   id              String @id @default(cuid())
   category        LeaveCategory
@@ -216,6 +239,8 @@ model LeavePolicy {
   notes           String?
   isActive        Boolean @default(true)
   createdAt       DateTime @default(now())
+  createdById     String?
+  createdBy       User? @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id])
   transactions    LeaveTransaction[]
   @@index([category, effectiveFrom, effectiveTo])
 }
