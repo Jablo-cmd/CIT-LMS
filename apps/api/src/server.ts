@@ -1,6 +1,6 @@
-import { app } from "./app";
-import { config } from "./config";
-import { prisma } from "./db";
+import { app } from "./app.js";
+import { config } from "./config.js";
+import { prisma } from "./db.js";
 
 const server = app.listen(config.PORT, () => {
   console.log(`CIT-LMS API listening on port ${config.PORT}`);
