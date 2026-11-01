@@ -58,6 +58,7 @@ export default function HomePage() {
       <div className="brand"><span className="brand-icon">C</span><div><strong>CIT-LMS</strong><small>People administration</small></div></div>
       <p className="nav-heading">WORKSPACE</p>
       <Link className="nav-link active" href="/">Overview</Link>
+      <Link className="nav-link" href="/account">My account</Link>
       <Link className="nav-link" href="/employees">Employees</Link>
       <p className="nav-heading nav-gap">HR MANAGEMENT</p>
       <a className="nav-link disabled-link" href="#modules">Leave register</a>
