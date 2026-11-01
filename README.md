@@ -12,7 +12,7 @@ An internal HR records application for employee profiles, employment and posting
 - Private local document storage during local development
 
 ## Requirements
-- Node.js 22 LTS
+- Node.js 22.12+ LTS
 - npm 10+
 - Docker Desktop (for local PostgreSQL)
 
