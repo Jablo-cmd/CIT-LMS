@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { prisma } from "../db";
-import { isOwner } from "../middleware/auth";
+import { prisma } from "../db.js";
+import { isOwner } from "../middleware/auth.js";
 
 export const auditRouter = Router();
 auditRouter.use(isOwner);
