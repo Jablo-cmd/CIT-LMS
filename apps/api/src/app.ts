@@ -1,0 +1,30 @@
+import express from "express";
+import helmet from "helmet";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import { ZodError } from "zod";
+import { config } from "./config";
+import { authRouter } from "./routes/auth";
+import { employeesRouter } from "./routes/employees";
+import { requireAuth } from "./middleware/auth";
+
+export const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
+app.use(helmet());
+app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
+app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
+app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "cit-lms-api" }));
+app.use("/api/auth", authRouter);
+app.use("/api/employees", requireAuth, employeesRouter);
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof ZodError) return res.status(400).json({ error: "Validation failed", details: err.issues });
+  if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") return res.status(409).json({ error: "A record with this unique value already exists" });
+  if (config.NODE_ENV !== "production") console.error(err);
+  return res.status(500).json({ error: "An unexpected server error occurred" });
+});
