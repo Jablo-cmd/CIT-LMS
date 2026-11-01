@@ -187,6 +187,29 @@ leaveRouter.post("/balances/:employeeId/adjust", hrOnly, async (req, res, next) 
   } catch (e) { return next(e); }
 });
 
+
+leaveRouter.post("/transactions/:id/reverse", hrOnly, async (req, res, next) => {
+  try {
+    const input = z.object({ reason: z.string().trim().min(5).max(2000) }).parse(req.body);
+    const original = await prisma.leaveTransaction.findUnique({ where: { id: String(req.params.id) } });
+    if (!original) return res.status(404).json({ error: "Leave transaction not found" });
+    if (original.type === "REVERSAL" || original.type === "VOID") return res.status(400).json({ error: "A reversal or void transaction cannot itself be reversed" });
+    const referenceNumber = `REVERSAL-${original.id}`;
+    const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId: original.employeeId, category: original.category, referenceNumber } });
+    if (existing) return res.status(409).json({ error: "This leave transaction has already been reversed" });
+    const reversalDays = original.type === "DEDUCTION" ? Number(original.days) : -Number(original.days);
+    const reversal = await prisma.$transaction(async tx => {
+      const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: original.employeeId, category: original.category } });
+      const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+      return tx.leaveTransaction.create({
+        data: { employeeId: original.employeeId, category: original.category, type: "REVERSAL", days: reversalDays, balanceBefore: balance, balanceAfter: balance + reversalDays, reason: input.reason, referenceNumber, capturedById: req.auth!.userId }
+      });
+    }, { isolationLevel: "Serializable" });
+    await writeAudit(req, "REVERSE_LEAVE_TRANSACTION", "LeaveTransaction", reversal.id, original, reversal);
+    return res.status(201).json({ transaction: reversal });
+  } catch(e){return next(e);}
+});
+
 leaveRouter.post("/transactions/:id/adjust", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({ days: z.number().refine(v => v !== 0), reason: z.string().trim().min(5).max(2000) }).parse(req.body);
