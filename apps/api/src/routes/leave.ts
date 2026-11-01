@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../db";
-import { allowRoles } from "../middleware/auth";
-import { writeAudit } from "../middleware/audit";
-import { calculateWorkingLeaveDays } from "../services/leave-calculation";
+import { prisma } from "../db.js";
+import { allowRoles } from "../middleware/auth.js";
+import { writeAudit } from "../middleware/audit.js";
+import { calculateWorkingLeaveDays } from "../services/leave-calculation.js";
 
 export const leaveRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
