@@ -32,7 +32,7 @@ export default function EmployeesPage() {
   useEffect(()=>{ void load(); },[status]);
 
   return <main className="content">
-    <div className="page-heading"><div><p className="eyebrow">WORKFORCE RECORDS</p><h1>Employee directory</h1><p className="lead">Search and review employee records held by CIT.</p></div><span className="count-chip">{data?.pagination.total ?? "—"} records</span></div>
+    <div className="page-heading"><div><p className="eyebrow">WORKFORCE RECORDS</p><h1>Employee directory</h1><p className="lead">Search and review employee records held by CIT.</p></div><div className="heading-actions"><span className="count-chip">{data?.pagination.total ?? "—"} records</span><Link className="primary-link" href="/employees/new">+ Add employee</Link></div></div>
     <section className="panel">
       <div className="toolbar">
         <input aria-label="Search employees" placeholder="Search employee number, name, position or site…" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter" && void load()} />
@@ -42,7 +42,7 @@ export default function EmployeesPage() {
         <button className="secondary-button" onClick={()=>void load()}>Search</button>
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading ? <div className="empty-state">Loading employee records…</div> : data?.items.length ? <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee number</th><th>Position</th><th>Posting site</th><th>Employment</th><th>Status</th></tr></thead><tbody>{data.items.map(person=><tr key={person.id}><td><strong>{person.firstName} {person.lastName}</strong><small>{person.department?.name ?? "Department not set"}</small></td><td>{person.employeeNumber}</td><td>{person.currentPosition ?? "—"}</td><td>{person.currentPosting?.name ?? "Head Office / Not assigned"}</td><td>{person.employmentType === "PERMANENT" ? "Permanent" : "Contract"}</td><td><span className={`status status-${person.employmentStatus.toLowerCase()}`}>{person.employmentStatus}</span></td></tr>)}</tbody></table></div> : <div className="empty-state"><strong>No employee records found</strong><span>Records will appear here after authorised personnel add employees.</span></div>}
+      {loading ? <div className="empty-state">Loading employee records…</div> : data?.items.length ? <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Employee number</th><th>Position</th><th>Posting site</th><th>Employment</th><th>Status</th></tr></thead><tbody>{data.items.map(person=><tr key={person.id}><td><Link className="employee-link" href={`/employees/${person.id}`}><strong>{person.firstName} {person.lastName}</strong></Link><small>{person.department?.name ?? "Department not set"}</small></td><td>{person.employeeNumber}</td><td>{person.currentPosition ?? "—"}</td><td>{person.currentPosting?.name ?? "Head Office / Not assigned"}</td><td>{person.employmentType === "PERMANENT" ? "Permanent" : "Contract"}</td><td><span className={`status status-${person.employmentStatus.toLowerCase()}`}>{person.employmentStatus}</span></td></tr>)}</tbody></table></div> : <div className="empty-state"><strong>No employee records found</strong><span>Records will appear here after authorised personnel add employees.</span></div>}
     </section>
     <p className="page-note">Employee records are confidential. Access and changes are role-controlled and audited.</p>
   </main>;
