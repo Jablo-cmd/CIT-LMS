@@ -17,7 +17,7 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - name: Validate Prisma schema
-        run: npx prisma validate --schema apps/api/prisma/schema.prisma
+        run: cd apps/api && npx prisma validate
         env:
           DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       - name: Generate initial migration SQL for review
