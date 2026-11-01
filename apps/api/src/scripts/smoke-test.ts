@@ -129,6 +129,31 @@ async function main() {
   const reversedBalance = await request(`/leave/balances/${employeeId}`, hrCookie);
   assert(Number(reversedBalance.payload.balances.ANNUAL) === 5, "reversal must restore the original leave balance");
 
+  await request("/leave/transactions", hrCookie, "POST", {
+    employeeId, category: "UNPAID", firstLeaveDate: "2026-06-18",
+    lastLeaveDate: "2026-06-18", supportingDocumentId: uploaded.document.id,
+    reason: "CI unpaid leave transaction"
+  }, 201);
+
+  const oldPolicy = await request("/leave/policies", hrCookie, "POST", {
+    category: "ANNUAL", name: "CI 2025 Annual Policy", entitlementDays: 24,
+    employmentType: "PERMANENT", effectiveFrom: "2025-01-01",
+    effectiveTo: "2025-12-31", carryOverLimit: 4
+  }, 201);
+  await prisma.leaveTransaction.create({
+    data: {
+      employeeId, policyId: oldPolicy.payload.policy.id, category: "ANNUAL",
+      type: "ADJUSTMENT", days: 8, balanceBefore: 0, balanceAfter: 8,
+      reason: "Synthetic 2025 closing balance", referenceNumber: `CI-2025-OPENING-${suffix}`,
+      capturedById: hrCreated.payload.user.id, capturedAt: new Date("2025-12-30T12:00:00.000Z")
+    }
+  });
+  const carryover = await request("/leave/carryover/apply", hrCookie, "POST", { year: 2025 });
+  assert(carryover.payload.entriesCreated === 1, "year-end carry-over must cap balances above the configured policy limit");
+  assert(Number(carryover.payload.entries[0].days) === -4, "carry-over cap must post a negative adjustment for the excess");
+  const carryoverAgain = await request("/leave/carryover/apply", hrCookie, "POST", { year: 2025 });
+  assert(carryoverAgain.payload.entriesCreated === 0, "year-end carry-over processing must be idempotent");
+
   const overtime = await request("/overtime", hrCookie, "POST", {
     employeeId, workDate: "2026-06-20", startTime: "09:00", finishTime: "13:30",
     confirmedBy: "CI Test Manager"
