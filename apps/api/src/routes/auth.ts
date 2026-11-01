@@ -17,6 +17,7 @@ authRouter.post("/login", async (req, res, next) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await prisma.auditLog.create({ data: { userId:user.id, action:"LOGIN", entityType:"User", entityId:user.id, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
     const token = jwt.sign({ role: user.role, tokenVersion: user.tokenVersion }, config.JWT_ACCESS_SECRET, { subject: user.id, expiresIn: config.JWT_ACCESS_TTL as jwt.SignOptions["expiresIn"] });
     res.cookie("cit_session", token, {
       httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict",
@@ -40,9 +41,12 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
   } catch(e){return next(e);}
 });
 
-authRouter.post("/logout", requireAuth, (_req, res) => {
-  res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict", path: "/" });
-  return res.status(204).end();
+authRouter.post("/logout", requireAuth, async (req, res, next) => {
+  try {
+    await prisma.auditLog.create({ data: { userId:req.auth!.userId, action:"LOGOUT", entityType:"User", entityId:req.auth!.userId, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
+    res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict", path: "/" });
+    return res.status(204).end();
+  } catch(e){return next(e);}
 });
 
 authRouter.get("/me", requireAuth, async (req, res) => {
