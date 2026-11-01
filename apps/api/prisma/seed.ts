@@ -1,5 +1,9 @@
+import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error("DATABASE_URL must be configured before seeding");
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 function easterSunday(year: number): Date {
   const a = year % 19, b = Math.floor(year / 100), c = year % 100;
