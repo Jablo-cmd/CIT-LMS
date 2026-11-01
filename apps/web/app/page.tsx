@@ -12,6 +12,7 @@ const modules = [
   { title:"Employees", description:"Employee directory, profiles and employment history", href:"/employees", state:"Available" },
   { title:"Leave register", description:"Manual leave-form capture, balances and adjustments", href:"/leave", state:"Available" },
   { title:"Posting sites", description:"CIT deployment locations and site administration", href:"/postings", state:"Available" },
+  { title:"Work calendar", description:"Working schedules and public holidays", href:"/calendar", state:"Available" },
   { title:"Weekend overtime", description:"Confirmed overtime entries and reporting", href:"/overtime", state:"Available" },
   { title:"Disciplinary records", description:"Restricted hearing records and supporting documents", href:"/disciplinary", state:"Available" },
   { title:"Recommendations", description:"Commendations and management recommendations", href:"/recommendations", state:"Available" },
