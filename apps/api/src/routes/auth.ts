@@ -2,9 +2,9 @@ import { Router } from "express";
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { prisma } from "../db";
-import { config } from "../config";
-import { requireAuth } from "../middleware/auth";
+import { prisma } from "../db.js";
+import { config } from "../config.js";
+import { requireAuth } from "../middleware/auth.js";
 
 export const authRouter = Router();
 const loginSchema = z.object({ email: z.string().email().max(254), password: z.string().min(1).max(200) });
