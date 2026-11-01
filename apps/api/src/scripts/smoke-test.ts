@@ -151,7 +151,7 @@ async function main() {
   const changedCookie = await login(hrEmail, changedPassword);
   await request("/auth/me", changedCookie);
 
-  await request("/auth/logout", ownerCookie, "POST");
+  await request("/auth/logout", ownerCookie, "POST", undefined, 204);
   await request("/auth/me", ownerCookie, "GET", undefined, 401);
 
   console.log("CIT-LMS integration smoke test passed: authentication, roles, employee records, documents, history, leave, overtime, disciplinary access and audit.");
