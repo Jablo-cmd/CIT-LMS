@@ -106,6 +106,7 @@ model Employee {
   contractEndDate    DateTime?
   departmentId       String?
   currentPosition    String?
+  deployedRole       String?
   currentPostingId   String?
   workingScheduleId  String?
   createdAt          DateTime @default(now())
@@ -155,6 +156,8 @@ model EmploymentHistory {
   employeeId           String
   previousPosition     String?
   newPosition          String?
+  previousDeployedRole String?
+  newDeployedRole      String?
   previousPostingId    String?
   newPostingId         String?
   effectiveDate        DateTime
