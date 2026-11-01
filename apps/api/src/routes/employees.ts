@@ -133,7 +133,7 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-employeesRouter.post("/:id/next-of-kin", allStaff, async (req, res, next) => {
+employeesRouter.post("/:id/next-of-kin", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({ fullName:z.string().trim().min(2).max(120), relationship:z.string().trim().min(2).max(80), phone:z.string().trim().min(5).max(40), email:z.string().email().optional(), isPrimary:z.boolean().default(false), notes:z.string().max(1000).optional() }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id:String(req.params.id) }, select:{ id:true } });
