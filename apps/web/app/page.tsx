@@ -10,13 +10,13 @@ type EmployeeList = { items: unknown[]; pagination:{total:number} };
 
 const modules = [
   { title:"Employees", description:"Employee directory, profiles and employment history", href:"/employees", state:"Available" },
-  { title:"Leave register", description:"Manual leave-form capture, balances and adjustments", href:"/leave", state:"Building" },
-  { title:"Posting history", description:"Appointments, position changes and site transfers", href:"/postings", state:"Building" },
-  { title:"Weekend overtime", description:"Confirmed overtime entries and reporting", href:"/overtime", state:"Building" },
-  { title:"Disciplinary records", description:"Restricted hearing records and supporting documents", href:"/disciplinary", state:"Building" },
-  { title:"Recommendations", description:"Commendations and management recommendations", href:"/recommendations", state:"Building" },
-  { title:"Documents", description:"Secure employee document register", href:"/documents", state:"Building" },
-  { title:"Reports", description:"Workforce, leave and overtime reports", href:"/reports", state:"Building" }
+  { title:"Leave register", description:"Manual leave-form capture, balances and adjustments", href:"/leave", state:"Available" },
+  { title:"Posting sites", description:"CIT deployment locations and site administration", href:"/postings", state:"Available" },
+  { title:"Weekend overtime", description:"Confirmed overtime entries and reporting", href:"/overtime", state:"Available" },
+  { title:"Disciplinary records", description:"Restricted hearing records and supporting documents", href:"/disciplinary", state:"Available" },
+  { title:"Recommendations", description:"Commendations and management recommendations", href:"/recommendations", state:"Available" },
+  { title:"Documents", description:"Secure employee document register", href:"/documents", state:"Available" },
+  { title:"Reports", description:"Workforce, leave and overtime reports", href:"/reports", state:"Available" },\n  { title:"User administration", description:"Individual accounts and role permissions", href:"/users", state:"Available" },\n  { title:"Audit log", description:"Traceable system activity and changes", href:"/audit", state:"Available" }
 ];
 
 export default function HomePage() {
@@ -44,7 +44,7 @@ export default function HomePage() {
     return ()=>{active=false;};
   },[router]);
 
-  async function logout(){
+  const visibleModules=modules.filter(item=>!(user?.role==="ADMIN_PERSONNEL"&&["/disciplinary","/recommendations","/users","/audit"].includes(item.href))&&!(user?.role!=="COMPANY_OWNER"&&["/users","/audit"].includes(item.href)));\n\n  async function logout(){
     try { await api("/auth/logout",{method:"POST"}); } finally { router.replace("/login"); router.refresh(); }
   }
 
@@ -78,7 +78,7 @@ export default function HomePage() {
           <article className="stat-card"><span>DATABASE</span><strong className="stat-role">Connected</strong><small>Live API session verified</small></article>
         </div>
         <div className="section-title" id="modules"><div><p className="eyebrow">SYSTEM AREAS</p><h2>Management modules</h2></div><span className="muted">Build status</span></div>
-        <div className="module-grid">{modules.map(item=><article className="module" key={item.title}><div className="module-top"><span className="module-icon">{item.title.slice(0,1)}</span><span className={item.state==="Available"?"module-status available":"module-status"}>{item.state}</span></div><h3>{item.href==="/employees"?<Link href={item.href}>{item.title}</Link>:item.title}</h3><p>{item.description}</p></article>)}</div>
+        <div className="module-grid">{visibleModules.map(item=><Link className="module module-link" href={item.href} key={item.title}><div className="module-top"><span className="module-icon">{item.title.slice(0,1)}</span><span className="module-status available">{item.state}</span></div><h3>{item.title}</h3><p>{item.description}</p></Link>)}</div>
         <footer>CIT-LMS <span>·</span> Internal HR workspace <span>·</span> Use synthetic data during development</footer>
       </div>
     </section>
