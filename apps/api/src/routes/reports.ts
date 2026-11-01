@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { prisma } from "../db";
-import { allowRoles } from "../middleware/auth";
+import { prisma } from "../db.js";
+import { allowRoles } from "../middleware/auth.js";
 
 export const reportsRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
