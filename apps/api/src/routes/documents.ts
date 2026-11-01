@@ -4,10 +4,10 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { prisma } from "../db";
-import { config } from "../config";
-import { allowRoles } from "../middleware/auth";
-import { writeAudit } from "../middleware/audit";
+import { prisma } from "../db.js";
+import { config } from "../config.js";
+import { allowRoles } from "../middleware/auth.js";
+import { writeAudit } from "../middleware/audit.js";
 
 export const documentsRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
