@@ -45,6 +45,47 @@ leaveRouter.post("/calculate", allStaff, async (req, res, next) => {
   } catch (e) { return next(e); }
 });
 
+
+leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
+  try {
+    const input = z.object({ year: z.number().int().min(2000).max(2100), month: z.number().int().min(1).max(12) }).parse(req.body);
+    const monthStart = new Date(Date.UTC(input.year, input.month - 1, 1));
+    const monthEnd = new Date(Date.UTC(input.year, input.month, 0, 23, 59, 59, 999));
+    const employees = await prisma.employee.findMany({
+      where: { employmentStatus: "ACTIVE", originalHireDate: { lte: monthEnd }, OR: [{ contractEndDate: null }, { contractEndDate: { gte: monthStart } }] }
+    });
+    const policies = await prisma.leavePolicy.findMany({
+      where: { isActive: true, effectiveFrom: { lte: monthEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthStart } }] },
+      orderBy: { effectiveFrom: "desc" }
+    });
+    const results: Array<{employeeId:string;category:string;days:number;transactionId:string}> = [];
+    for (const employee of employees) {
+      const latestByCategory = new Map<string, typeof policies[number]>();
+      for (const policy of policies) {
+        if (policy.employmentType && policy.employmentType !== employee.employmentType) continue;
+        if (!latestByCategory.has(policy.category)) latestByCategory.set(policy.category, policy);
+      }
+      for (const policy of latestByCategory.values()) {
+        const days = policy.accrualPerMonth ? Number(policy.accrualPerMonth) : policy.entitlementDays ? Number(policy.entitlementDays) / 12 : 0;
+        if (days <= 0) continue;
+        const referenceNumber = `ACCRUAL-${input.year}-${String(input.month).padStart(2,"0")}-${employee.id}-${policy.id}`;
+        const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId: employee.id, category: policy.category, referenceNumber } });
+        if (existing) continue;
+        const transaction = await prisma.$transaction(async tx => {
+          const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: employee.id, category: policy.category } });
+          const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+          return tx.leaveTransaction.create({
+            data: { employeeId: employee.id, policyId: policy.id, category: policy.category, type: "ADJUSTMENT", days, balanceBefore: balance, balanceAfter: balance + days, reason: `Monthly policy accrual for ${input.year}-${String(input.month).padStart(2,"0")}`, referenceNumber, capturedById: req.auth!.userId }
+          });
+        }, { isolationLevel: "Serializable" });
+        results.push({ employeeId: employee.id, category: policy.category, days, transactionId: transaction.id });
+      }
+    }
+    await writeAudit(req, "RUN_MONTHLY_LEAVE_ACCRUAL", "LeaveTransaction", undefined, undefined, { year: input.year, month: input.month, entriesCreated: results.length });
+    return res.json({ year: input.year, month: input.month, entriesCreated: results.length, entries: results });
+  } catch(e){return next(e);}
+});
+
 leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
   try {
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { id: true, employeeNumber: true, firstName: true, lastName: true } });
