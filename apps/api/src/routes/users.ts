@@ -1,9 +1,9 @@
 import { Router } from "express";
 import argon2 from "argon2";
 import { z } from "zod";
-import { prisma } from "../db";
-import { isOwner } from "../middleware/auth";
-import { writeAudit } from "../middleware/audit";
+import { prisma } from "../db.js";
+import { isOwner } from "../middleware/auth.js";
+import { writeAudit } from "../middleware/audit.js";
 
 export const usersRouter = Router();
 usersRouter.use(isOwner);
