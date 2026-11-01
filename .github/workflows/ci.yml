@@ -10,10 +10,30 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cit_lms
+          POSTGRES_USER: cit_lms
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cit_lms -d cit_lms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      NODE_ENV: production
+      PORT: 4000
       DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       JWT_ACCESS_SECRET: ci-only-secret-value-long-enough-for-validation-123456
       WEB_ORIGIN: http://localhost:3000
+      COOKIE_SECURE: "false"
+      STORAGE_ROOT: /tmp/cit-lms-storage
+      MAX_UPLOAD_BYTES: 10485760
+      SMOKE_API_URL: http://127.0.0.1:4000/api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,16 +42,12 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Validate Prisma schema
         run: cd apps/api && npx prisma validate
-        env:
-          DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       - name: Generate initial migration SQL for review
         run: |
           cd apps/api
           mkdir -p prisma/migrations/20261101000000_init
           npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > prisma/migrations/20261101000000_init/migration.sql
           printf 'provider = "postgresql"\n' > prisma/migrations/migration_lock.toml
-        env:
-          DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       - name: Inspect dependency advisories
         run: |
           npm audit --json > npm-audit.json || true
@@ -39,6 +55,28 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Apply database migrations
+        run: cd apps/api && npx prisma migrate deploy
+      - name: Seed reference data
+        run: npm run db:seed --workspace @cit-lms/api
+      - name: Start production API and check health
+        run: |
+          mkdir -p /tmp/cit-lms-storage
+          npm run start --workspace @cit-lms/api > /tmp/cit-lms-api.log 2>&1 &
+          echo $! > /tmp/cit-lms-api.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/cit-lms-api.log
+          exit 1
+      - name: Run end-to-end API smoke test
+        run: npm run smoke:ci --workspace @cit-lms/api
+      - name: Stop API
+        if: always()
+        run: if [ -f /tmp/cit-lms-api.pid ]; then kill "$(cat /tmp/cit-lms-api.pid)" || true; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
