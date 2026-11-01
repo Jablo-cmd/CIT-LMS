@@ -30,7 +30,7 @@ documentsRouter.get("/employee/:employeeId", allStaff, async (req, res, next) =>
     const isHr = req.auth!.role !== "ADMIN_PERSONNEL";
     const items = await prisma.employeeDocument.findMany({
       where: {
-        employeeId: req.params.employeeId,
+        employeeId: String(req.params.employeeId),
         ...(isHr ? {} : { category: { not: "IDENTITY_PERSONAL" }, disciplinary: { none: {} } })
       },
       select: { id: true, title: true, category: true, originalName: true, mimeType: true, sizeBytes: true, description: true, uploadedAt: true, uploadedBy: { select: { fullName: true } } },
@@ -49,7 +49,7 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
       description: z.string().max(2000).optional()
     }).parse(req.body);
     if (req.auth!.role === "ADMIN_PERSONNEL" && isSensitiveCategory(input.category)) return res.status(403).json({ error: "Only HR or the Company Owner may upload identity and personal documents" });
-    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId }, select: { id: true } });
+    const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { id: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const extension = path.extname(req.file.originalname).toLowerCase();
     if (!allowedExtensions.has(extension) || !validSignature(req.file.buffer, extension)) return res.status(415).json({ error: "File content does not match an allowed PDF, Word, JPG or PNG format" });
@@ -83,7 +83,7 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
 
 documentsRouter.get("/photos/:employeeId", allStaff, async (req, res, next) => {
   try {
-    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId }, select: { photoPath: true } });
+    const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { photoPath: true } });
     if (!employee?.photoPath) return res.status(404).json({ error: "Employee photograph not found" });
     const root = path.resolve(config.STORAGE_ROOT);
     const target = path.resolve(root, employee.photoPath);
@@ -96,7 +96,7 @@ documentsRouter.get("/photos/:employeeId", allStaff, async (req, res, next) => {
 
 documentsRouter.get("/:id/download", allStaff, async (req, res, next) => {
   try {
-    const document = await prisma.employeeDocument.findUnique({ where: { id: req.params.id }, include: { disciplinary: { select: { id: true } } } });
+    const document = await prisma.employeeDocument.findUnique({ where: { id: String(req.params.id) }, include: { disciplinary: { select: { id: true } } } });
     if (!document) return res.status(404).json({ error: "Document not found" });
     if (req.auth!.role === "ADMIN_PERSONNEL" && (isSensitiveCategory(document.category) || document.disciplinary.length > 0)) return res.status(403).json({ error: "You do not have permission to access this document" });
     const root = path.resolve(config.STORAGE_ROOT);
@@ -111,7 +111,7 @@ documentsRouter.post("/photos/:employeeId", hrOnly, upload.single("file"), async
     if (!req.file) return res.status(400).json({ error: "A JPG or PNG photo is required" });
     const extension = path.extname(req.file.originalname).toLowerCase();
     if (![".jpg", ".jpeg", ".png"].includes(extension) || !validSignature(req.file.buffer, extension)) return res.status(415).json({ error: "Only valid JPG and PNG photographs are accepted" });
-    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
+    const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const relativePath = path.join(employee.id, `photo-${randomUUID()}${extension}`);
     const root = path.resolve(config.STORAGE_ROOT);
