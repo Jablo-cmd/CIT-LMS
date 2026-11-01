@@ -21,6 +21,32 @@ reportsRouter.get("/overview", allStaff, async (_req, res, next) => {
   } catch (e) { return next(e); }
 });
 
+
+reportsRouter.get("/overtime", allStaff, async (req, res, next) => {
+  try {
+    const from = typeof req.query.from === "string" ? new Date(req.query.from) : undefined;
+    const to = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
+    if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime())) || (from && to && from > to)) return res.status(400).json({ error: "Invalid overtime report date range" });
+    const entries = await prisma.overtimeEntry.findMany({
+      where: { ...(from || to ? { workDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) },
+      include: { employee: { select: { id:true, employeeNumber:true, firstName:true, lastName:true } }, postingSite: { select: { id:true, name:true, code:true } } },
+      orderBy: { workDate:"asc" }
+    });
+    const byEmployee = new Map<string,{employee:typeof entries[number]["employee"];entries:number;hours:number}>();
+    const bySite = new Map<string,{site:string;entries:number;hours:number}>();
+    let totalHours = 0;
+    for (const entry of entries) {
+      const hours = Number(entry.totalHours); totalHours += hours;
+      const employeeRow = byEmployee.get(entry.employeeId) ?? { employee:entry.employee, entries:0, hours:0 };
+      employeeRow.entries++; employeeRow.hours += hours; byEmployee.set(entry.employeeId,employeeRow);
+      const siteKey = entry.postingSite?.id ?? "UNASSIGNED";
+      const siteRow = bySite.get(siteKey) ?? { site:entry.postingSite?.name ?? "Unassigned", entries:0, hours:0 };
+      siteRow.entries++; siteRow.hours += hours; bySite.set(siteKey,siteRow);
+    }
+    return res.json({ totalEntries:entries.length, totalHours:Math.round(totalHours*100)/100, byEmployee:[...byEmployee.values()], bySite:[...bySite.values()], entries });
+  } catch(e){return next(e);}
+});
+
 reportsRouter.get("/leave", hrOnly, async (req, res, next) => {
   try {
     const year = Number(req.query.year) || new Date().getUTCFullYear();
