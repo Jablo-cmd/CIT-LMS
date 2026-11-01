@@ -65,6 +65,7 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
         if (!latestByCategory.has(policy.category)) latestByCategory.set(policy.category, policy);
       }
       for (const policy of latestByCategory.values()) {
+        if (policy.category === "UNPAID") continue;
         const days = policy.accrualPerMonth ? Number(policy.accrualPerMonth) : policy.entitlementDays ? Number(policy.entitlementDays) / 12 : 0;
         if (days <= 0) continue;
         const referenceNumber = `ACCRUAL-${input.year}-${String(input.month).padStart(2,"0")}-${employee.id}-${policy.id}`;
@@ -93,6 +94,7 @@ leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
     const balances = new Map<string, number>();
     for (const row of rows) {
       const key = row.category;
+      if (key === "UNPAID") continue;
       const previous = balances.get(key) ?? 0;
       const days = Number(row.days);
       const next = row.type === "DEDUCTION" ? previous - days : previous + days;
@@ -130,7 +132,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
     if (days < 1) return res.status(400).json({ error: "The selected dates contain no scheduled working days" });
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const policy = await prisma.leavePolicy.findFirst({
+    const policy = input.category === "UNPAID" ? null : await prisma.leavePolicy.findFirst({
       where: {
         category: input.category, isActive: true,
         effectiveFrom: { lte: input.firstLeaveDate },
@@ -139,18 +141,18 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       },
       orderBy: { effectiveFrom: "desc" }
     });
-    if (!policy) return res.status(409).json({ error: "No active leave policy covers the selected dates and employee type" });
+    if (input.category !== "UNPAID" && !policy) return res.status(409).json({ error: "No active leave policy covers the selected dates and employee type" });
 
     const transaction = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: input.employeeId, category: input.category }, orderBy: { capturedAt: "asc" } });
       const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
-      if (balance < days) throw new Error("INSUFFICIENT_LEAVE_BALANCE");
+      if (input.category !== "UNPAID" && balance < days) throw new Error("INSUFFICIENT_LEAVE_BALANCE");
       return tx.leaveTransaction.create({
         data: {
-          employeeId: input.employeeId, policyId: policy.id, category: input.category,
+          employeeId: input.employeeId, policyId: policy?.id, category: input.category,
           type: "DEDUCTION", firstLeaveDate: input.firstLeaveDate, lastLeaveDate: input.lastLeaveDate,
-          formSubmissionDate: input.formSubmissionDate, days, balanceBefore: balance,
-          balanceAfter: balance - days, reason: input.reason, referenceNumber: input.referenceNumber,
+          formSubmissionDate: input.formSubmissionDate, days, balanceBefore: input.category === "UNPAID" ? null : balance,
+          balanceAfter: input.category === "UNPAID" ? null : balance - days, reason: input.reason, referenceNumber: input.referenceNumber,
           capturedById: req.auth!.userId
         },
         include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } } }
