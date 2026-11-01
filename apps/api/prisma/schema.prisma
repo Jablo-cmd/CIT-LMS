@@ -1,0 +1,340 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  COMPANY_OWNER
+  HR_MANAGER
+  ADMIN_PERSONNEL
+}
+enum EmploymentType {
+  PERMANENT
+  CONTRACT
+}
+enum EmploymentStatus {
+  ACTIVE
+  SUSPENDED
+  RESIGNED
+  DISMISSED
+  DECEASED
+}
+enum LeaveCategory {
+  ANNUAL
+  SICK
+  FAMILY_RESPONSIBILITY
+  MATERNITY
+  PATERNITY_PARENTAL
+  UNPAID
+  STUDY
+  OTHER
+}
+enum LeaveTransactionType {
+  DEDUCTION
+  ADJUSTMENT
+  REVERSAL
+  VOID
+}
+enum DocumentCategory {
+  ACADEMIC_QUALIFICATION
+  PROFESSIONAL_CERTIFICATE
+  TRAINING_CERTIFICATE
+  IDENTITY_PERSONAL
+  EMPLOYMENT
+  OTHER
+}
+enum DisciplinaryOutcome {
+  PENDING
+  NO_ACTION
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  FINAL_WARNING
+  SUSPENSION
+  DISMISSAL
+  OTHER
+}
+enum RecommendationType {
+  COMMENDATION
+  PERFORMANCE
+  PROMOTION
+  OTHER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  fullName      String
+  passwordHash  String
+  tokenVersion  Int      @default(0)
+  role          UserRole
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  auditLogs     AuditLog[]
+  capturedLeave LeaveTransaction[] @relation("LeaveCapturedBy")
+  uploadedDocs  EmployeeDocument[] @relation("DocumentUploadedBy")
+  historyEvents EmploymentHistory[] @relation("HistoryRecordedBy")
+  overtimeEntries OvertimeEntry[] @relation("OvertimeCapturedBy")
+  disciplinaryRecords DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
+  recommendations Recommendation[] @relation("RecommendationCapturedBy")
+  leavePoliciesCreated LeavePolicy[] @relation("LeavePolicyCreatedBy")
+}
+
+model Employee {
+  id                 String @id @default(cuid())
+  employeeNumber     String @unique
+  firstName          String
+  lastName           String
+  nationality        String?
+  photoPath          String?
+  photoUpdatedAt     DateTime?
+  addressStreet      String?
+  addressSuburb      String?
+  addressCity        String?
+  addressProvince    String?
+  addressPostalCode  String?
+  phone              String?
+  email              String?
+  employmentType     EmploymentType
+  employmentStatus   EmploymentStatus @default(ACTIVE)
+  originalHireDate   DateTime
+  contractStartDate  DateTime?
+  contractEndDate    DateTime?
+  departmentId       String?
+  currentPosition    String?
+  deployedRole       String?
+  currentPostingId   String?
+  workingScheduleId  String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  department         Department? @relation(fields: [departmentId], references: [id])
+  currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id])
+  workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id])
+  history            EmploymentHistory[]
+  nextOfKin          NextOfKin[]
+  documents          EmployeeDocument[]
+  leaveTransactions  LeaveTransaction[]
+  overtimeEntries    OvertimeEntry[]
+  disciplinary       DisciplinaryRecord[]
+  recommendations    Recommendation[]
+  @@index([lastName, firstName])
+  @@index([employmentStatus])
+  @@index([currentPosition])
+  @@index([currentPostingId])
+}
+
+model Department {
+  id        String @id @default(cuid())
+  name      String @unique
+  isActive  Boolean @default(true)
+  employees Employee[]
+  createdAt DateTime @default(now())
+}
+
+model PostingSite {
+  id             String @id @default(cuid())
+  code           String @unique
+  name           String
+  address        String?
+  city           String?
+  province       String?
+  isHeadOffice   Boolean @default(false)
+  isActive       Boolean @default(true)
+  employees      Employee[] @relation("CurrentPosting")
+  previousHistory EmploymentHistory[] @relation("PreviousPosting")
+  newHistory     EmploymentHistory[] @relation("NewPosting")
+  overtime       OvertimeEntry[]
+  createdAt      DateTime @default(now())
+}
+
+model EmploymentHistory {
+  id                   String @id @default(cuid())
+  employeeId           String
+  previousPosition     String?
+  newPosition          String?
+  previousDeployedRole String?
+  newDeployedRole      String?
+  previousPostingId    String?
+  newPostingId         String?
+  effectiveDate        DateTime
+  recordedAt           DateTime @default(now())
+  reason               String
+  managerName          String?
+  notes                String?
+  supportingDocumentId String? @unique
+  recordedById         String
+  employee             Employee @relation(fields: [employeeId], references: [id])
+  previousPosting      PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
+  newPosting           PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
+  supportingDocument   EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id])
+  recordedBy           User @relation("HistoryRecordedBy", fields: [recordedById], references: [id])
+  @@index([employeeId, effectiveDate])
+}
+
+model NextOfKin {
+  id           String @id @default(cuid())
+  employeeId   String
+  fullName     String
+  relationship String
+  phone        String
+  email        String?
+  isPrimary    Boolean @default(false)
+  notes        String?
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model EmployeeDocument {
+  id              String @id @default(cuid())
+  employeeId      String
+  title           String
+  category        DocumentCategory
+  originalName    String
+  storagePath     String @unique
+  mimeType        String
+  sizeBytes       Int
+  description     String?
+  uploadedAt      DateTime @default(now())
+  uploadedById    String
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  uploadedBy      User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  historyEvent    EmploymentHistory? @relation("HistoryDocument")
+  leaveForms      LeaveTransaction[]
+  overtimeFiles   OvertimeEntry[]
+  disciplinary    DisciplinaryRecord[]
+  recommendations Recommendation[]
+}
+
+model WorkingSchedule {
+  id          String @id @default(cuid())
+  name        String @unique
+  workingDays Int[]
+  description String?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  employees   Employee[]
+}
+
+model PublicHoliday {
+  id          String @id @default(cuid())
+  date        DateTime @unique
+  name        String
+  countryCode String @default("ZA")
+  createdAt   DateTime @default(now())
+  @@index([date, countryCode])
+}
+
+model LeavePolicy {
+  id              String @id @default(cuid())
+  category        LeaveCategory
+  name            String
+  entitlementDays Decimal? @db.Decimal(7,2)
+  accrualPerMonth Decimal? @db.Decimal(7,3)
+  employmentType  EmploymentType?
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  carryOverLimit  Decimal? @db.Decimal(7,2)
+  eligibility     String?
+  notes           String?
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  createdById     String?
+  createdBy       User? @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id])
+  transactions    LeaveTransaction[]
+  @@index([category, effectiveFrom, effectiveTo])
+}
+
+model LeaveTransaction {
+  id                 String @id @default(cuid())
+  employeeId         String
+  policyId           String?
+  category           LeaveCategory
+  type               LeaveTransactionType @default(DEDUCTION)
+  firstLeaveDate     DateTime?
+  lastLeaveDate      DateTime?
+  formSubmissionDate DateTime?
+  capturedAt         DateTime @default(now())
+  days               Decimal @db.Decimal(7,2)
+  balanceBefore      Decimal? @db.Decimal(9,2)
+  balanceAfter       Decimal? @db.Decimal(9,2)
+  reason             String?
+  referenceNumber    String?
+  capturedById       String
+  employee           Employee @relation(fields: [employeeId], references: [id])
+  policy             LeavePolicy? @relation(fields: [policyId], references: [id])
+  capturedBy         User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
+  documents          EmployeeDocument[]
+  @@index([employeeId, category, capturedAt])
+  @@unique([employeeId, category, referenceNumber])
+}
+
+model OvertimeEntry {
+  id             String @id @default(cuid())
+  employeeId     String
+  postingSiteId  String?
+  workDate       DateTime
+  startTime      String
+  finishTime     String
+  totalHours     Decimal @db.Decimal(6,2)
+  confirmedBy    String
+  capturedById   String
+  notes          String?
+  createdAt      DateTime @default(now())
+  employee       Employee @relation(fields: [employeeId], references: [id])
+  postingSite    PostingSite? @relation(fields: [postingSiteId], references: [id])
+  capturedBy     User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id])
+  documents      EmployeeDocument[]
+  @@index([workDate, employeeId])
+}
+
+model DisciplinaryRecord {
+  id            String @id @default(cuid())
+  employeeId    String
+  hearingDate   DateTime
+  matter        String
+  finding       String?
+  outcome       DisciplinaryOutcome @default(PENDING)
+  sanction      String?
+  notes         String?
+  capturedById  String
+  createdAt     DateTime @default(now())
+  employee      Employee @relation(fields: [employeeId], references: [id])
+  capturedBy    User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id])
+  documents     EmployeeDocument[]
+  @@index([employeeId, hearingDate])
+}
+
+model Recommendation {
+  id          String @id @default(cuid())
+  employeeId  String
+  date        DateTime
+  type        RecommendationType
+  description String
+  submittedBy String
+  capturedById String
+  comments    String?
+  createdAt   DateTime @default(now())
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  capturedBy  User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id])
+  documents   EmployeeDocument[]
+  @@index([employeeId, date])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  beforeData  Json?
+  afterData   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  user        User? @relation(fields: [userId], references: [id])
+  @@index([entityType, entityId, createdAt])
+  @@index([userId, createdAt])
+}
