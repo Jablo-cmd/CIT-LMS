@@ -80,6 +80,20 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
   } catch (e) { return next(e); }
 });
 
+
+documentsRouter.get("/photos/:employeeId", allStaff, async (req, res, next) => {
+  try {
+    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId }, select: { photoPath: true } });
+    if (!employee?.photoPath) return res.status(404).json({ error: "Employee photograph not found" });
+    const root = path.resolve(config.STORAGE_ROOT);
+    const target = path.resolve(root, employee.photoPath);
+    if (!target.startsWith(root + path.sep)) return res.status(400).json({ error: "Invalid photograph path" });
+    return res.sendFile(target, { headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } }, error => {
+      if (error && !res.headersSent) next(error);
+    });
+  } catch (e) { return next(e); }
+});
+
 documentsRouter.get("/:id/download", allStaff, async (req, res, next) => {
   try {
     const document = await prisma.employeeDocument.findUnique({ where: { id: req.params.id }, include: { disciplinary: { select: { id: true } } } });
