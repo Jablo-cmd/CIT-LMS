@@ -31,7 +31,7 @@ export default function EmployeeProfilePage(){
   if(!employee)return <main className="content"><Link href="/employees" className="back-link">← Employee directory</Link><div className="empty-state">{error||"Loading employee profile…"}</div></main>;
   const photoUrl=`${API_URL}/documents/photos/${id}`;
   return <main className="content">
-    <div className="page-heading"><div><p className="eyebrow">EMPLOYEE RECORD · {employee.employeeNumber}</p><h1>{employee.firstName} {employee.lastName}</h1><p className="lead">{employee.currentPosition||"Position not assigned"} · {employee.currentPosting?.name||"Head Office / No external posting"}</p></div><Link href="/employees" className="back-link">← Employee directory</Link></div>
+    <div className="page-heading"><div><p className="eyebrow">EMPLOYEE RECORD · {employee.employeeNumber}</p><h1>{employee.firstName} {employee.lastName}</h1><p className="lead">{employee.currentPosition||"Position not assigned"} · {employee.currentPosting?.name||"Head Office / No external posting"}</p></div><div className="profile-actions"><Link href={`/employees/${id}/edit`} className="primary-link">Edit employee</Link><Link href="/employees" className="back-link">← Employee directory</Link></div></div>
     {error&&<p className="form-error">{error}</p>}
     <div className="profile-grid">
       <section className="panel profile-card">
