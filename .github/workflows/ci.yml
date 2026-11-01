@@ -25,7 +25,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      NODE_ENV: production
       PORT: 4000
       DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
       JWT_ACCESS_SECRET: ci-only-secret-value-long-enough-for-validation-123456
@@ -60,6 +59,8 @@ jobs:
       - name: Seed reference data
         run: npm run db:seed --workspace @cit-lms/api
       - name: Start production API and check health
+        env:
+          NODE_ENV: production
         run: |
           mkdir -p /tmp/cit-lms-storage
           npm run start --workspace @cit-lms/api > /tmp/cit-lms-api.log 2>&1 &
