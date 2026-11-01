@@ -91,7 +91,6 @@ employeesRouter.post("/", allStaff, async (req, res, next) => {
       return res.status(403).json({ error: "Only HR or the Company Owner may assign an employee's position or posting" });
     }
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
-    if (input.currentPostingId && !(await prisma.postingSite.findUnique({ where: { id: input.currentPostingId } }))) return res.status(400).json({ error: "Posting site not found" });
     if (input.workingScheduleId && !(await prisma.workingSchedule.findUnique({ where: { id: input.workingScheduleId } }))) return res.status(400).json({ error: "Working schedule not found" });
     const employee = await prisma.$transaction(async tx => {
       const created = await tx.employee.create({ data: { ...input, email: input.email || null } });
@@ -128,15 +127,12 @@ const updateSchema = z.object({
   contractStartDate: z.coerce.date().nullable().optional(),
   contractEndDate: z.coerce.date().nullable().optional(),
   departmentId: z.string().nullable().optional(),
-  currentPosition: z.string().trim().max(120).nullable().optional(),
-  currentPostingId: z.string().nullable().optional(),
-  deployedRole: z.string().trim().max(120).nullable().optional()
 }).refine(v => Object.keys(v).length > 0, { message: "At least one field must be supplied" });
 
 employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
   try {
     const input = updateSchema.parse(req.body);
-    const restricted = ["employmentType","employmentStatus","contractStartDate","contractEndDate","departmentId","currentPosition","currentPostingId","deployedRole"];
+    const restricted = ["employmentType","employmentStatus","contractStartDate","contractEndDate","departmentId"];
     if (req.auth!.role === "ADMIN_PERSONNEL" && restricted.some(key => key in input)) return res.status(403).json({ error: "This change requires HR Manager or Company Owner permissions" });
     const before = await prisma.employee.findUnique({ where: { id: req.params.id } });
     if (!before) return res.status(404).json({ error: "Employee not found" });
