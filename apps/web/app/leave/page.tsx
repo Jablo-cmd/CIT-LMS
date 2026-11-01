@@ -13,7 +13,7 @@ const categories=["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY
 const label=(s:string)=>s.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 export default function LeavePage(){
   const [employees,setEmployees]=useState<Employee[]>([]);const [policies,setPolicies]=useState<Policy[]>([]);const [items,setItems]=useState<Transaction[]>([]);const [balanceRows,setBalanceRows]=useState<BalanceRow[]>([]);const [employeeDocs,setEmployeeDocs]=useState<EmployeeDoc[]>([]);
-  const [role,setRole]=useState("");const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
+  const [role,setRole]=useState("");const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);const [carryoverYear,setCarryoverYear]=useState(String(new Date().getFullYear()-1));
   const [employeeId,setEmployeeId]=useState("");const [category,setCategory]=useState("ANNUAL");const [first,setFirst]=useState("");const [last,setLast]=useState("");const [formDate,setFormDate]=useState("");
   const [preview,setPreview]=useState<number|null>(null);const [reason,setReason]=useState("");const [ref,setRef]=useState("");const [supportingDocumentId,setSupportingDocumentId]=useState("");
   const [opening,setOpening]=useState({employeeId:"",category:"ANNUAL",days:"",reason:"Opening balance verified against CIT leave records"});
@@ -47,6 +47,7 @@ export default function LeavePage(){
     finally{setBusy(false);}
   }
   async function reverseTransaction(id:string){const reason=window.prompt("Enter the reason for reversing this leave transaction:");if(!reason||reason.trim().length<5)return;setBusy(true);setError("");try{await api(`/leave/transactions/${id}/reverse`,{method:"POST",body:JSON.stringify({reason})});await load();}catch(e){setError(e instanceof Error?e.message:"Could not reverse transaction");}finally{setBusy(false);}}
+  async function applyCarryover(){setBusy(true);setError("");setNotice("");try{const result=await api<{entriesCreated:number}>("/leave/carryover/apply",{method:"POST",body:JSON.stringify({year:Number(carryoverYear)})});setNotice(`Carry-over review completed for ${carryoverYear}: ${result.entriesCreated} balance adjustments posted.`);await load();}catch(e){setError(e instanceof Error?e.message:"Could not apply carry-over limits");}finally{setBusy(false);}}
   async function runAccrual(){setBusy(true);setError("");setNotice("");try{const now=new Date();const result=await api<{entriesCreated:number}>("/leave/accruals/run",{method:"POST",body:JSON.stringify({year:now.getFullYear(),month:now.getMonth()+1})});setNotice(`Monthly accrual completed: ${result.entriesCreated} ledger entries created.`);await load();}catch(e){setError(e instanceof Error?e.message:"Could not run monthly accrual");}finally{setBusy(false);}}
   async function createPolicy(e:FormEvent){
     e.preventDefault();setBusy(true);setError("");
@@ -57,7 +58,7 @@ export default function LeavePage(){
   return <main className="content">
     <div className="page-heading"><div><p className="eyebrow">HR RECORDS</p><h1>Leave register</h1><p className="lead">Capture leave from submitted paper forms and maintain an auditable balance ledger.</p></div><Link className="back-link" href="/">← Dashboard</Link></div>
     {error&&<p className="form-error">{error}</p>}{notice&&<p className="success-message">{notice}</p>}
-    <section className="panel record-panel"><div className="panel-heading"><div><p className="eyebrow">MANUAL FORM CAPTURE</p><h2>Record employee leave</h2></div>{role!=="ADMIN_PERSONNEL"&&<button type="button" className="secondary-button" onClick={()=>void runAccrual()} disabled={busy}>Run current-month accrual</button>}</div>
+    <section className="panel record-panel"><div className="panel-heading"><div><p className="eyebrow">MANUAL FORM CAPTURE</p><h2>Record employee leave</h2></div>{role!=="ADMIN_PERSONNEL"&&<div className="leave-admin-actions"><button type="button" className="secondary-button" onClick={()=>void runAccrual()} disabled={busy}>Run current-month accrual</button><label className="form-field">Closed leave year<input type="number" min="2000" max={new Date().getFullYear()-1} value={carryoverYear} onChange={e=>setCarryoverYear(e.target.value)}/></label><button type="button" className="secondary-button" onClick={()=>void applyCarryover()} disabled={busy}>Apply carry-over caps</button></div>}</div>
       <form className="module-form" onSubmit={capture}>
         <div className="form-grid"><label className="form-field">Employee<select required value={employeeId} onChange={e=>setEmployeeId(e.target.value)}><option value="">Select employee</option>{employees.map(x=><option key={x.id} value={x.id}>{x.employeeNumber} · {x.firstName} {x.lastName}</option>)}</select></label>
           <label className="form-field">Leave category<select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(x=><option key={x} value={x}>{label(x)}</option>)}</select></label>
