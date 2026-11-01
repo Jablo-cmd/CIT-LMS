@@ -47,7 +47,7 @@ leaveRouter.post("/calculate", allStaff, async (req, res, next) => {
 
 leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
   try {
-    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId }, select: { id: true, employeeNumber: true, firstName: true, lastName: true } });
+    const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { id: true, employeeNumber: true, firstName: true, lastName: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const rows = await prisma.leaveTransaction.findMany({ where: { employeeId: employee.id }, orderBy: { capturedAt: "asc" } });
     const balances = new Map<string, number>();
@@ -132,7 +132,7 @@ leaveRouter.post("/balances/:employeeId/adjust", hrOnly, async (req, res, next) 
       days: z.number().refine(v => v !== 0),
       reason: z.string().trim().min(5).max(2000)
     }).parse(req.body);
-    const employee = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
+    const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const transaction = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: employee.id, category: input.category } });
@@ -149,7 +149,7 @@ leaveRouter.post("/balances/:employeeId/adjust", hrOnly, async (req, res, next) 
 leaveRouter.post("/transactions/:id/adjust", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({ days: z.number().refine(v => v !== 0), reason: z.string().trim().min(5).max(2000) }).parse(req.body);
-    const original = await prisma.leaveTransaction.findUnique({ where: { id: req.params.id } });
+    const original = await prisma.leaveTransaction.findUnique({ where: { id: String(req.params.id) } });
     if (!original) return res.status(404).json({ error: "Leave transaction not found" });
     const transaction = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: original.employeeId, category: original.category } });
