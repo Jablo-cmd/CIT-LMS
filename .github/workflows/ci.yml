@@ -10,6 +10,10 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
+      JWT_ACCESS_SECRET: ci-only-secret-value-long-enough-for-validation-123456
+      WEB_ORIGIN: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
