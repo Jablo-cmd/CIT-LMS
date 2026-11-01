@@ -2,30 +2,37 @@
 
 **CIT Employee Management & Leave Records System**
 
-CIT-LMS is an internal HR records application for employee profiles, employment and posting history, leave transactions, weekend overtime, disciplinary records, recommendations, and supporting documents.
+An internal HR records application for employee profiles, employment and posting history, leave transactions, weekend overtime, disciplinary records, recommendations and employee documents.
 
-## Project principles
+## Technology
+- Next.js + React + TypeScript frontend
+- Node.js + Express + TypeScript API
+- PostgreSQL database
+- Prisma ORM
+- Private local document storage during local development
 
-- Local-first development with no paid cloud dependency during initial development.
-- Role-based access for the Company Owner, HR Manager, and Administrative Personnel.
-- Preserve historical records; important changes must be auditable.
-- Protect personal, employment, disciplinary, and identity documents.
-- Record leave captured from CIT's existing manual forms; this is not a leave application or approval workflow.
-- No payroll, salary management, attendance tracking, employee self-service accounts, or overtime-pay calculations.
+## Requirements
+- Node.js 22 LTS
+- npm 10+
+- Docker Desktop (for local PostgreSQL)
 
-## Project status
+## Local setup
+1. Copy `apps/api/.env.example` to `apps/api/.env`.
+2. Replace `JWT_ACCESS_SECRET` with a random secret of at least 32 random characters.
+3. Start PostgreSQL: `docker compose up -d postgres`.
+4. Install dependencies from the repository root: `npm install`.
+5. Generate Prisma Client: `npm run db:generate --workspace @cit-lms/api`.
+6. Create the development migration: `npm run db:migrate --workspace @cit-lms/api -- --name init`.
+7. Start both applications: `npm run dev`.
 
-Initial project documentation has been committed. Application implementation has not started; the functional scope and architecture are documented first.
-
-## Documentation
-
-- [Functional specification](docs/functional-specification.md)
-- [Technical architecture](docs/technical-architecture.md)
+The frontend runs on http://localhost:3000 and the API on http://localhost:4000.
 
 ## Security
+- Never commit environment files, passwords, employee data or uploaded documents.
+- Use synthetic data only during development.
+- Never expose the storage directory through static web hosting.
+- Production requires HTTPS, secure cookies, managed secrets, tested backups, restricted network access, monitoring and a security review.
+- No default owner account or production password is included. Owner provisioning must be a controlled, one-time process.
 
-This repository is private. Never commit real employee information, identity documents, credentials, database dumps, environment files, or production records. Use synthetic demo data only.
-
-## Initial development approach
-
-Develop and test locally first. Hosting, database deployment, backups, and operational security must be assessed before any real employee data is introduced.
+## Project status
+Active development. The development branch contains the initial frontend shell, Node.js API foundation and relational data model. It is **not production-ready yet**. See `docs/functional-specification.md` and `docs/technical-architecture.md` for agreed scope and architecture.
