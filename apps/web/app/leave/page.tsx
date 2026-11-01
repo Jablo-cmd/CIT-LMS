@@ -6,14 +6,15 @@ import { api } from "../../lib/api";
 
 type Employee={id:string;employeeNumber:string;firstName:string;lastName:string};
 type Policy={id:string;category:string;name:string;entitlementDays:string|null;effectiveFrom:string;effectiveTo:string|null;employmentType:string|null;isActive:boolean};
+type EmployeeDoc={id:string;title:string;category:string};
 type Transaction={id:string;category:string;type:string;days:string;firstLeaveDate?:string|null;lastLeaveDate?:string|null;capturedAt:string;reason?:string|null;employee:Employee;capturedBy:{fullName:string}};
 const categories=["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY_PARENTAL","UNPAID","STUDY","OTHER"];
 const label=(s:string)=>s.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 export default function LeavePage(){
-  const [employees,setEmployees]=useState<Employee[]>([]);const [policies,setPolicies]=useState<Policy[]>([]);const [items,setItems]=useState<Transaction[]>([]);
+  const [employees,setEmployees]=useState<Employee[]>([]);const [policies,setPolicies]=useState<Policy[]>([]);const [items,setItems]=useState<Transaction[]>([]);const [employeeDocs,setEmployeeDocs]=useState<EmployeeDoc[]>([]);
   const [role,setRole]=useState("");const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
   const [employeeId,setEmployeeId]=useState("");const [category,setCategory]=useState("ANNUAL");const [first,setFirst]=useState("");const [last,setLast]=useState("");const [formDate,setFormDate]=useState("");
-  const [preview,setPreview]=useState<number|null>(null);const [reason,setReason]=useState("");const [ref,setRef]=useState("");
+  const [preview,setPreview]=useState<number|null>(null);const [reason,setReason]=useState("");const [ref,setRef]=useState("");const [supportingDocumentId,setSupportingDocumentId]=useState("");
   const [opening,setOpening]=useState({employeeId:"",category:"ANNUAL",days:"",reason:"Opening balance verified against CIT leave records"});
   const [policy,setPolicy]=useState({category:"ANNUAL",name:"Annual leave",entitlementDays:"",accrualPerMonth:"",employmentType:"",effectiveFrom:new Date().toISOString().slice(0,10),effectiveTo:"",carryOverLimit:""});
   async function load(){
@@ -26,6 +27,7 @@ export default function LeavePage(){
     }catch(e){setError(e instanceof Error?e.message:"Could not load leave register");}
   }
   useEffect(()=>{void load();},[]);
+  useEffect(()=>{if(employeeId){api<{items:EmployeeDoc[]}>(`/documents/employee/${employeeId}`).then(r=>setEmployeeDocs(r.items)).catch(()=>setEmployeeDocs([]));setSupportingDocumentId("");}},[employeeId]);
   async function calculate(){
     setError("");setPreview(null);
     try{const result=await api<{workingDays:number}>("/leave/calculate",{method:"POST",body:JSON.stringify({employeeId,firstLeaveDate:first,lastLeaveDate:last})});setPreview(result.workingDays);}
@@ -33,7 +35,7 @@ export default function LeavePage(){
   }
   async function capture(e:FormEvent){
     e.preventDefault();setBusy(true);setError("");
-    try{await api("/leave/transactions",{method:"POST",body:JSON.stringify({employeeId,category,firstLeaveDate:first,lastLeaveDate:last,formSubmissionDate:formDate||undefined,reason,referenceNumber:ref})});setPreview(null);setFirst("");setLast("");setReason("");setRef("");await load();}
+    try{await api("/leave/transactions",{method:"POST",body:JSON.stringify({employeeId,category,firstLeaveDate:first,lastLeaveDate:last,formSubmissionDate:formDate||undefined,reason,referenceNumber:ref,supportingDocumentId})});setPreview(null);setFirst("");setLast("");setReason("");setRef("");await load();}
     catch(e){setError(e instanceof Error?e.message:"Could not capture leave transaction");}
     finally{setBusy(false);}
   }
@@ -60,11 +62,11 @@ export default function LeavePage(){
           <label className="form-field">First leave date<input type="date" required value={first} onChange={e=>{setFirst(e.target.value);setPreview(null);}}/></label>
           <label className="form-field">Last leave date<input type="date" required value={last} onChange={e=>{setLast(e.target.value);setPreview(null);}}/></label>
           <label className="form-field">Paper form submission date<input type="date" value={formDate} onChange={e=>setFormDate(e.target.value)}/></label>
-          <label className="form-field">Form reference number<input value={ref} onChange={e=>setRef(e.target.value)}/></label>
+          <label className="form-field">Form reference number<input value={ref} onChange={e=>setRef(e.target.value)}/></label><label className="form-field">Supporting leave form<select required value={supportingDocumentId} onChange={e=>setSupportingDocumentId(e.target.value)}><option value="">Select uploaded employee document</option>{employeeDocs.map(d=><option key={d.id} value={d.id}>{d.title} · {label(d.category)}</option>)}</select></label>
         </div>
         <label className="form-field">Notes / reason<input value={reason} onChange={e=>setReason(e.target.value)}/></label>
         <div className="preview-row"><button type="button" className="secondary-button" onClick={()=>void calculate()} disabled={!employeeId||!first||!last}>Preview working days</button>{preview!==null&&<strong>{preview} working day(s) will be deducted</strong>}</div>
-        <button className="primary-button" disabled={busy||preview===null||preview<1}>{busy?"Saving…":"Save leave transaction"}</button>
+        <button className="primary-button" disabled={busy||preview===null||preview<1||!supportingDocumentId}>{busy?"Saving…":"Save leave transaction"}</button>
       </form>
       <p className="form-hint">Leave is not applied for or approved in this system. HR/admin personnel capture the submitted form. The system calculates scheduled working days using the employee calendar and configured public holidays.</p>
     </section>
