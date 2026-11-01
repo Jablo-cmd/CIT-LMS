@@ -16,7 +16,9 @@ const modules = [
   { title:"Disciplinary records", description:"Restricted hearing records and supporting documents", href:"/disciplinary", state:"Available" },
   { title:"Recommendations", description:"Commendations and management recommendations", href:"/recommendations", state:"Available" },
   { title:"Documents", description:"Secure employee document register", href:"/documents", state:"Available" },
-  { title:"Reports", description:"Workforce, leave and overtime reports", href:"/reports", state:"Available" },\n  { title:"User administration", description:"Individual accounts and role permissions", href:"/users", state:"Available" },\n  { title:"Audit log", description:"Traceable system activity and changes", href:"/audit", state:"Available" }
+  { title:"Reports", description:"Workforce, leave and overtime reports", href:"/reports", state:"Available" },
+  { title:"User administration", description:"Individual accounts and role permissions", href:"/users", state:"Available" },
+  { title:"Audit log", description:"Traceable system activity and changes", href:"/audit", state:"Available" }
 ];
 
 export default function HomePage() {
@@ -44,7 +46,9 @@ export default function HomePage() {
     return ()=>{active=false;};
   },[router]);
 
-  const visibleModules=modules.filter(item=>!(user?.role==="ADMIN_PERSONNEL"&&["/disciplinary","/recommendations","/users","/audit"].includes(item.href))&&!(user?.role!=="COMPANY_OWNER"&&["/users","/audit"].includes(item.href)));\n\n  async function logout(){
+  const visibleModules=modules.filter(item=>!(user?.role==="ADMIN_PERSONNEL"&&["/disciplinary","/recommendations","/users","/audit"].includes(item.href))&&!(user?.role!=="COMPANY_OWNER"&&["/users","/audit"].includes(item.href)));
+
+  async function logout(){
     try { await api("/auth/logout",{method:"POST"}); } finally { router.replace("/login"); router.refresh(); }
   }
 
