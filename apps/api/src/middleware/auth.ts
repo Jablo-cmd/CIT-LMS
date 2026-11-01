@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { config } from "../config";
-import { prisma } from "../db";
+import { config } from "../config.js";
+import { prisma } from "../db.js";
 import type { UserRole } from "@prisma/client";
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
