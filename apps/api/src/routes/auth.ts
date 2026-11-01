@@ -26,7 +26,21 @@ authRouter.post("/login", async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
-authRouter.post("/logout", (_req, res) => {
+
+authRouter.post("/change-password", requireAuth, async (req, res, next) => {
+  try {
+    const input = z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(14).max(200) }).parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    if (!user || !(await argon2.verify(user.passwordHash, input.currentPassword))) return res.status(400).json({ error: "Current password is incorrect" });
+    const passwordHash = await argon2.hash(input.newPassword);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await prisma.auditLog.create({ data: { userId: user.id, action: "CHANGE_PASSWORD", entityType: "User", entityId: user.id, ipAddress: req.ip, userAgent: req.get("user-agent")?.slice(0,500) } });
+    res.clearCookie("cit_session", { httpOnly:true, secure:config.COOKIE_SECURE==="true", sameSite:"strict", path:"/" });
+    return res.json({ message: "Password changed. Please sign in again." });
+  } catch(e){return next(e);}
+});
+
+authRouter.post("/logout", requireAuth, (_req, res) => {
   res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict", path: "/" });
   return res.status(204).end();
 });
