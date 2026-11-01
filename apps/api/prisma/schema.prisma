@@ -7,14 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole { COMPANY_OWNER HR_MANAGER ADMIN_PERSONNEL }
-enum EmploymentType { PERMANENT CONTRACT }
-enum EmploymentStatus { ACTIVE SUSPENDED RESIGNED DISMISSED DECEASED }
-enum LeaveCategory { ANNUAL SICK FAMILY_RESPONSIBILITY MATERNITY PATERNITY_PARENTAL UNPAID STUDY OTHER }
-enum LeaveTransactionType { DEDUCTION ADJUSTMENT REVERSAL VOID }
-enum DocumentCategory { ACADEMIC_QUALIFICATION PROFESSIONAL_CERTIFICATE TRAINING_CERTIFICATE IDENTITY_PERSONAL EMPLOYMENT OTHER }
-enum DisciplinaryOutcome { PENDING NO_ACTION VERBAL_WARNING WRITTEN_WARNING FINAL_WARNING SUSPENSION DISMISSAL OTHER }
-enum RecommendationType { COMMENDATION PERFORMANCE PROMOTION OTHER }
+enum UserRole {
+  COMPANY_OWNER
+  HR_MANAGER
+  ADMIN_PERSONNEL
+}
+enum EmploymentType {
+  PERMANENT
+  CONTRACT
+}
+enum EmploymentStatus {
+  ACTIVE
+  SUSPENDED
+  RESIGNED
+  DISMISSED
+  DECEASED
+}
+enum LeaveCategory {
+  ANNUAL
+  SICK
+  FAMILY_RESPONSIBILITY
+  MATERNITY
+  PATERNITY_PARENTAL
+  UNPAID
+  STUDY
+  OTHER
+}
+enum LeaveTransactionType {
+  DEDUCTION
+  ADJUSTMENT
+  REVERSAL
+  VOID
+}
+enum DocumentCategory {
+  ACADEMIC_QUALIFICATION
+  PROFESSIONAL_CERTIFICATE
+  TRAINING_CERTIFICATE
+  IDENTITY_PERSONAL
+  EMPLOYMENT
+  OTHER
+}
+enum DisciplinaryOutcome {
+  PENDING
+  NO_ACTION
+  VERBAL_WARNING
+  WRITTEN_WARNING
+  FINAL_WARNING
+  SUSPENSION
+  DISMISSAL
+  OTHER
+}
+enum RecommendationType {
+  COMMENDATION
+  PERFORMANCE
+  PROMOTION
+  OTHER
+}
 
 model User {
   id            String   @id @default(cuid())
@@ -29,6 +77,10 @@ model User {
   auditLogs     AuditLog[]
   capturedLeave LeaveTransaction[] @relation("LeaveCapturedBy")
   uploadedDocs  EmployeeDocument[] @relation("DocumentUploadedBy")
+  historyEvents EmploymentHistory[] @relation("HistoryRecordedBy")
+  overtimeEntries OvertimeEntry[] @relation("OvertimeCapturedBy")
+  disciplinaryRecords DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
+  recommendations Recommendation[] @relation("RecommendationCapturedBy")
 }
 
 model Employee {
@@ -38,6 +90,7 @@ model Employee {
   lastName           String
   nationality        String?
   photoPath          String?
+  photoUpdatedAt     DateTime?
   addressStreet      String?
   addressSuburb      String?
   addressCity        String?
@@ -79,37 +132,40 @@ model Department {
 }
 
 model PostingSite {
-  id          String @id @default(cuid())
-  code        String @unique
-  name        String
-  address     String?
-  city        String?
-  province    String?
-  isHeadOffice Boolean @default(false)
-  isActive    Boolean @default(true)
-  employees   Employee[] @relation("CurrentPosting")
-  history     EmploymentHistory[]
-  overtime    OvertimeEntry[]
-  createdAt   DateTime @default(now())
+  id             String @id @default(cuid())
+  code           String @unique
+  name           String
+  address        String?
+  city           String?
+  province       String?
+  isHeadOffice   Boolean @default(false)
+  isActive       Boolean @default(true)
+  employees      Employee[] @relation("CurrentPosting")
+  previousHistory EmploymentHistory[] @relation("PreviousPosting")
+  newHistory     EmploymentHistory[] @relation("NewPosting")
+  overtime       OvertimeEntry[]
+  createdAt      DateTime @default(now())
 }
 
 model EmploymentHistory {
-  id                  String @id @default(cuid())
-  employeeId          String
-  previousPosition    String?
-  newPosition         String?
-  previousPostingId   String?
-  newPostingId        String?
-  effectiveDate       DateTime
-  recordedAt          DateTime @default(now())
-  reason              String
-  managerName         String?
-  notes               String?
+  id                   String @id @default(cuid())
+  employeeId           String
+  previousPosition     String?
+  newPosition          String?
+  previousPostingId    String?
+  newPostingId         String?
+  effectiveDate        DateTime
+  recordedAt           DateTime @default(now())
+  reason               String
+  managerName          String?
+  notes                String?
   supportingDocumentId String? @unique
-  employee            Employee @relation(fields: [employeeId], references: [id])
-  previousPosting     PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
-  newPosting          PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
-  supportingDocument  EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id])
+  recordedById         String
+  employee             Employee @relation(fields: [employeeId], references: [id])
+  previousPosting      PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
+  newPosting           PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
+  supportingDocument   EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id])
+  recordedBy           User @relation("HistoryRecordedBy", fields: [recordedById], references: [id])
   @@index([employeeId, effectiveDate])
 }
 
@@ -126,61 +182,64 @@ model NextOfKin {
 }
 
 model EmployeeDocument {
-  id            String @id @default(cuid())
-  employeeId    String
-  title         String
-  category      DocumentCategory
-  originalName  String
-  storagePath   String @unique
-  mimeType      String
-  sizeBytes     Int
-  description   String?
-  uploadedAt    DateTime @default(now())
-  uploadedById  String
-  employee      Employee @relation(fields: [employeeId], references: [id])
-  uploadedBy    User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
-  historyEvent  EmploymentHistory? @relation("HistoryDocument")
-  disciplinary  DisciplinaryRecord[]
+  id              String @id @default(cuid())
+  employeeId      String
+  title           String
+  category        DocumentCategory
+  originalName    String
+  storagePath     String @unique
+  mimeType        String
+  sizeBytes       Int
+  description     String?
+  uploadedAt      DateTime @default(now())
+  uploadedById    String
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  uploadedBy      User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  historyEvent    EmploymentHistory? @relation("HistoryDocument")
+  leaveForms      LeaveTransaction[]
+  overtimeFiles   OvertimeEntry[]
+  disciplinary    DisciplinaryRecord[]
   recommendations Recommendation[]
 }
 
 model LeavePolicy {
-  id             String @id @default(cuid())
-  category       LeaveCategory
-  name           String
+  id              String @id @default(cuid())
+  category        LeaveCategory
+  name            String
   entitlementDays Decimal? @db.Decimal(7,2)
   accrualPerMonth Decimal? @db.Decimal(7,3)
-  employmentType EmploymentType?
-  effectiveFrom  DateTime
-  effectiveTo    DateTime?
-  carryOverLimit Decimal? @db.Decimal(7,2)
-  eligibility    String?
-  notes          String?
-  isActive       Boolean @default(true)
-  createdAt      DateTime @default(now())
-  transactions   LeaveTransaction[]
+  employmentType  EmploymentType?
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  carryOverLimit  Decimal? @db.Decimal(7,2)
+  eligibility     String?
+  notes           String?
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  transactions    LeaveTransaction[]
   @@index([category, effectiveFrom, effectiveTo])
 }
 
 model LeaveTransaction {
-  id               String @id @default(cuid())
-  employeeId       String
-  policyId         String?
-  category         LeaveCategory
-  type             LeaveTransactionType @default(DEDUCTION)
-  firstLeaveDate   DateTime?
-  lastLeaveDate    DateTime?
+  id                 String @id @default(cuid())
+  employeeId         String
+  policyId           String?
+  category           LeaveCategory
+  type               LeaveTransactionType @default(DEDUCTION)
+  firstLeaveDate     DateTime?
+  lastLeaveDate      DateTime?
   formSubmissionDate DateTime?
-  capturedAt       DateTime @default(now())
-  days             Decimal @db.Decimal(7,2)
-  balanceBefore    Decimal? @db.Decimal(9,2)
-  balanceAfter     Decimal? @db.Decimal(9,2)
-  reason           String?
-  referenceNumber  String?
-  capturedById     String
-  employee         Employee @relation(fields: [employeeId], references: [id])
-  policy           LeavePolicy? @relation(fields: [policyId], references: [id])
-  capturedBy       User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
+  capturedAt         DateTime @default(now())
+  days               Decimal @db.Decimal(7,2)
+  balanceBefore      Decimal? @db.Decimal(9,2)
+  balanceAfter       Decimal? @db.Decimal(9,2)
+  reason             String?
+  referenceNumber    String?
+  capturedById       String
+  employee           Employee @relation(fields: [employeeId], references: [id])
+  policy             LeavePolicy? @relation(fields: [policyId], references: [id])
+  capturedBy         User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
+  documents          EmployeeDocument[]
   @@index([employeeId, category, capturedAt])
 }
 
@@ -193,10 +252,13 @@ model OvertimeEntry {
   finishTime     String
   totalHours     Decimal @db.Decimal(6,2)
   confirmedBy    String
+  capturedById   String
   notes          String?
   createdAt      DateTime @default(now())
   employee       Employee @relation(fields: [employeeId], references: [id])
   postingSite    PostingSite? @relation(fields: [postingSiteId], references: [id])
+  capturedBy     User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id])
+  documents      EmployeeDocument[]
   @@index([workDate, employeeId])
 }
 
@@ -209,8 +271,10 @@ model DisciplinaryRecord {
   outcome       DisciplinaryOutcome @default(PENDING)
   sanction      String?
   notes         String?
+  capturedById  String
   createdAt     DateTime @default(now())
   employee      Employee @relation(fields: [employeeId], references: [id])
+  capturedBy    User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id])
   documents     EmployeeDocument[]
   @@index([employeeId, hearingDate])
 }
@@ -222,9 +286,11 @@ model Recommendation {
   type        RecommendationType
   description String
   submittedBy String
+  capturedById String
   comments    String?
   createdAt   DateTime @default(now())
   employee    Employee @relation(fields: [employeeId], references: [id])
+  capturedBy  User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id])
   documents   EmployeeDocument[]
   @@index([employeeId, date])
 }
