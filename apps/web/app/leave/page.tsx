@@ -21,7 +21,7 @@ export default function LeavePage(){
   async function load(){
     setError("");
     try{
-      const [emp,tx,me]=await Promise.all([api<{items:Employee[]}>("/employees?pageSize=100"),api<{items:Transaction[]}>("/leave/transactions"),api<{user:{role:string}}>("/auth/me")]);
+      const [emp,tx,me]=await Promise.all([api<{items:Employee[]}>("/employees?pageSize=500"),api<{items:Transaction[]}>("/leave/transactions"),api<{user:{role:string}}>("/auth/me")]);
       setEmployees(emp.items);setItems(tx.items);setRole(me.user.role);
       if(!employeeId&&emp.items[0]){setEmployeeId(emp.items[0].id);setOpening(o=>({...o,employeeId:emp.items[0].id}));}
       if(me.user.role!=="ADMIN_PERSONNEL"){const p=await api<{items:Policy[]}>("/leave/policies");setPolicies(p.items);}
