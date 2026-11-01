@@ -18,7 +18,7 @@ export default function NewEmployeePage(){
     addressStreet:"",addressSuburb:"",addressCity:"",addressProvince:"",addressPostalCode:"",
     phone:"",email:"",employmentType:"PERMANENT",employmentStatus:"ACTIVE",
     originalHireDate:"",contractStartDate:"",contractEndDate:"",
-    departmentId:"",currentPosition:"",currentPostingId:"",deployedRole:"",workingScheduleId:""
+    departmentId:"",workingScheduleId:""
   });
   useEffect(()=>{
     Promise.all([
@@ -33,8 +33,7 @@ export default function NewEmployeePage(){
     e.preventDefault();setBusy(true);setError("");
     try{
       const payload={...form,originalHireDate:form.originalHireDate,contractStartDate:form.contractStartDate||undefined,contractEndDate:form.contractEndDate||undefined,
-        departmentId:form.departmentId||undefined,currentPosition:form.currentPosition||undefined,currentPostingId:form.currentPostingId||undefined,
-        deployedRole:form.deployedRole||undefined,workingScheduleId:form.workingScheduleId||undefined,email:form.email||undefined};
+        departmentId:form.departmentId||undefined,workingScheduleId:form.workingScheduleId||undefined,email:form.email||undefined};
       const result=await api<{employee:{id:string}}>("/employees",{method:"POST",body:JSON.stringify(payload)});
       router.push(`/employees/${result.employee.id}`);
     }catch(err){setError(err instanceof Error?err.message:"Could not create employee");}
@@ -59,11 +58,7 @@ export default function NewEmployeePage(){
         <label className="form-field">Department<select value={form.departmentId} onChange={e=>set("departmentId",e.target.value)}><option value="">Select department</option>{departments.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
         <label className="form-field">Working schedule<select value={form.workingScheduleId} onChange={e=>set("workingScheduleId",e.target.value)}><option value="">Use standard weekday schedule</option>{schedules.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
       </div></section>
-      <section className="form-section"><h2>Initial assignment</h2><p className="form-hint">Official position and deployed site role are recorded separately. Future changes must be added through employment history with supporting documentation.</p><div className="form-grid">
-        {field("Official employment position","currentPosition")}
-        <label className="form-field">Posting site<select value={form.currentPostingId} onChange={e=>set("currentPostingId",e.target.value)}><option value="">Head Office / no external posting</option>{sites.map(x=><option key={x.id} value={x.id}>{x.name} ({x.code})</option>)}</select></label>
-        {field("Role performed at posting","deployedRole")}
-      </div></section>
+      <p className="form-hint">After creating the employee record, upload the appointment or posting document, then record the initial position and posting in the employment history.</p>
       {error&&<p className="form-error">{error}</p>}
       <div className="form-actions"><Link className="back-link" href="/employees">Cancel</Link><button className="primary-button" disabled={busy}>{busy?"Saving employee…":"Create employee record"}</button></div>
     </form>
