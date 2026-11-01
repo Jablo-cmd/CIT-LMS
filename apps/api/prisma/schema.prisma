@@ -69,6 +69,7 @@ model User {
   email         String   @unique
   fullName      String
   passwordHash  String
+  tokenVersion  Int      @default(0)
   role          UserRole
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
