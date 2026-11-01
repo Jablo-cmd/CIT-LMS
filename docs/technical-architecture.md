@@ -1,8 +1,36 @@
 # CIT-LMS Technical Architecture
 
-**Status:** Proposed baseline; implementation stack to be confirmed before application code is added.
+**Status:** Technology direction confirmed; detailed implementation decisions will be made during scaffolding.
 
-## 1. Delivery constraints
+## 1. Confirmed technology direction
+
+- **Language:** TypeScript across frontend and backend.
+- **Frontend:** Next.js.
+- **Backend:** Node.js, implemented as a separate API service.
+- **API style:** REST.
+- **Database:** PostgreSQL, running locally during initial development.
+- **Initial file storage:** Private local storage outside publicly served directories.
+- **Styling:** Tailwind CSS is the proposed UI styling approach.
+
+The frontend and backend will be separate applications in one repository. This keeps the user interface separate from business rules, data access, authentication, and permission enforcement.
+
+## 2. Proposed repository structure
+
+```
+CIT-LMS/
+├── apps/
+│   ├── web/                 # Next.js + TypeScript frontend
+│   └── api/                 # Node.js + TypeScript backend
+├── docs/
+│   ├── functional-specification.md
+│   └── technical-architecture.md
+├── .gitignore
+└── README.md
+```
+
+The backend framework and database access library will be selected during scaffolding. A lightweight Express API and Prisma ORM are suitable defaults, subject to compatibility checks at implementation time.
+
+## 3. Delivery constraints
 
 - No paid cloud subscriptions or infrastructure are required for initial development.
 - Build and run locally first.
@@ -10,18 +38,28 @@
 - Use synthetic sample records only.
 - Keep deployment decisions separate from local development so hosting can be selected later based on cost, privacy, backups, and operational needs.
 
-## 2. Proposed application shape
+## 4. Application responsibilities
 
-A conventional web application with:
-- Responsive browser-based user interface.
-- Server-side application/API layer enforcing authentication and role permissions.
-- Relational database for structured records and audit history.
-- Private file storage for employee photos and documents.
-- Automated tests for critical calculations and permission boundaries.
+### Next.js frontend
+- Responsive browser-based interface.
+- Employee directory and profile screens.
+- HR capture forms and reports.
+- Role-aware navigation and user experience.
+- Communicates with the backend through the REST API.
 
-A practical candidate stack is TypeScript with Next.js for the application and PostgreSQL for the database. Local PostgreSQL can run on the development machine or through a local container. This is a proposal, not a final commitment; confirm the development environment and deployment constraints before scaffolding.
+### Node.js backend
+- Authentication and session management.
+- Server-side role and permission enforcement.
+- Business rules and validation.
+- Employee, employment-history, posting, leave, overtime, disciplinary, and recommendation services.
+- Leave-day calculation and balance transaction handling.
+- Secure document upload and retrieval.
+- Audit history and reporting endpoints.
+- Database access and migrations.
 
-## 3. Data design principles
+The backend is the authority for permissions and business rules. Hiding a button in the frontend is never treated as access control.
+
+## 5. Data design principles
 
 - Use stable internal IDs for relationships; employee number remains a unique CIT-assigned identifier.
 - Preserve immutable original hire date.
@@ -31,9 +69,9 @@ A practical candidate stack is TypeScript with Next.js for the application and P
 - Store policy versions/effective dates so later policy changes do not rewrite prior calculations.
 - Separate disciplinary records from recommendations.
 - Record actor and timestamps for important create/update actions.
-- Enforce permissions on the server, not only by hiding interface controls.
+- Enforce permissions on the server.
 
-## 4. Security and privacy
+## 6. Security and privacy
 
 - Private repository; no real personal data in Git.
 - Never commit secrets, passwords, tokens, production database dumps, or uploaded employee files.
@@ -44,11 +82,11 @@ A practical candidate stack is TypeScript with Next.js for the application and P
 - Maintain audit events for sensitive access and important changes where appropriate.
 - Define backup encryption, retention, restore testing, and incident procedures before production.
 
-## 5. Local development
+## 7. Local development
 
 Initial development should be reproducible on a developer workstation. Provide documented setup commands, environment-variable examples without secrets, database migrations, and synthetic seed data. Local data should be disposable and clearly marked as test data.
 
-## 6. Deployment gate
+## 8. Deployment gate
 
 Do not connect real CIT employee data until CIT has approved the requirements and leave rules, and the selected deployment provides:
 - Private application access.
