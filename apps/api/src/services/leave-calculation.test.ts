@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countWorkingDays } from "./leave-calculation";
+import { countWorkingDays } from "./leave-calculation.js";
 
 describe("countWorkingDays", () => {
   it("counts weekdays inclusively", () => {
