@@ -117,6 +117,60 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
 });
 
 
+
+leaveRouter.post("/carryover/apply", hrOnly, async (req, res, next) => {
+  try {
+    const input = z.object({ year: z.number().int().min(2000).max(2100) }).parse(req.body);
+    const currentYear = new Date().getUTCFullYear();
+    if (input.year >= currentYear) return res.status(400).json({ error: "Carry-over can only be applied after the leave year has closed" });
+    const yearEnd = new Date(Date.UTC(input.year, 11, 31, 23, 59, 59, 999));
+    const employees = await prisma.employee.findMany({
+      where: {
+        employmentStatus: "ACTIVE", originalHireDate: { lte: yearEnd },
+        OR: [{ contractStartDate: null }, { contractStartDate: { lte: yearEnd } }],
+        AND: [{ OR: [{ contractEndDate: null }, { contractEndDate: { gte: yearEnd } }] }]
+      }
+    });
+    const policies = (await prisma.leavePolicy.findMany({
+      where: {
+        isActive: true, category: { not: "UNPAID" }, carryOverLimit: { not: null },
+        effectiveFrom: { lte: yearEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: yearEnd } }]
+      }
+    })).sort((a,b) => Number(!!b.employmentType)-Number(!!a.employmentType) || b.effectiveFrom.getTime()-a.effectiveFrom.getTime());
+    const created: Array<{employeeId:string;category:string;days:number;transactionId:string}> = [];
+    for (const employee of employees) {
+      const latestByCategory = new Map<string, typeof policies[number]>();
+      for (const policy of policies) {
+        if (policy.employmentType && policy.employmentType !== employee.employmentType) continue;
+        if (!latestByCategory.has(policy.category)) latestByCategory.set(policy.category, policy);
+      }
+      for (const policy of latestByCategory.values()) {
+        const limit = Number(policy.carryOverLimit);
+        const referenceNumber = `CARRYOVER-${input.year}-${employee.id}-${policy.id}`;
+        const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId:employee.id, category:policy.category, referenceNumber } });
+        if (existing) continue;
+        const ledger = await prisma.leaveTransaction.findMany({
+          where: { employeeId:employee.id, category:policy.category, capturedAt:{ lte:yearEnd } }
+        });
+        const balance = ledger.reduce((total,row)=>total+(row.type==="DEDUCTION"?-Number(row.days):Number(row.days)),0);
+        if (balance <= limit) continue;
+        const adjustmentDays = Math.round((limit-balance)*100)/100;
+        const transaction = await prisma.$transaction(async tx => tx.leaveTransaction.create({
+          data: {
+            employeeId:employee.id, policyId:policy.id, category:policy.category,
+            type:"ADJUSTMENT", days:adjustmentDays, balanceBefore:balance,
+            balanceAfter:limit, reason:`Year-end ${input.year} carry-over cap applied (maximum ${limit} days)`,
+            referenceNumber, capturedById:req.auth!.userId
+          }
+        }), { isolationLevel:"Serializable" });
+        created.push({employeeId:employee.id,category:policy.category,days:adjustmentDays,transactionId:transaction.id});
+      }
+    }
+    await writeAudit(req,"APPLY_LEAVE_CARRYOVER_CAP","LeaveTransaction",undefined,undefined,{year:input.year,entriesCreated:created.length});
+    return res.json({year:input.year,entriesCreated:created.length,entries:created,cutoff:yearEnd.toISOString()});
+  }catch(e){return next(e);}
+});
+
 leaveRouter.get("/balances", allStaff, async (req, res, next) => {
   try {
     const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
