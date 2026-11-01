@@ -82,7 +82,6 @@ model User {
   disciplinaryRecords DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
   recommendations Recommendation[] @relation("RecommendationCapturedBy")
   leavePoliciesCreated LeavePolicy[] @relation("LeavePolicyCreatedBy")
-  overtimeEntries OvertimeEntry[] @relation("OvertimeCapturedBy")
 }
 
 model Employee {
