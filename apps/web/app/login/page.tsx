@@ -31,7 +31,7 @@ export default function LoginPage() {
       <section className="auth-card">
         <div className="auth-brand">
           <span className="brand-icon brand-icon--logo">
-            <img src="/cit-logo.png" alt="CIT Business Solutions" width={44} height={44} />
+            <img src="/cit-logo.svg" alt="CIT Business Solutions" width={44} height={44} />
           </span>
           <div>
             <strong>CIT-LMS</strong>
