@@ -30,7 +30,9 @@ export default function LoginPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <span className="brand-icon">C</span>
+          <span className="brand-icon brand-icon--logo">
+            <img src="/cit-logo.png" alt="CIT Business Solutions" width={44} height={44} />
+          </span>
           <div>
             <strong>CIT-LMS</strong>
             <small>People administration</small>
