@@ -55,7 +55,7 @@ export default function HomePage() {
 
   return <main className="layout">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-icon brand-icon--logo"><img src="/cit-logo.png" alt="CIT Business Solutions" width={40} height={40} /></span><div><strong>CIT-LMS</strong><small>People administration</small></div></div>
+      <div className="brand"><span className="brand-icon brand-icon--logo"><img src="/cit-logo.svg" alt="CIT Business Solutions" width={40} height={40} /></span><div><strong>CIT-LMS</strong><small>People administration</small></div></div>
       <p className="nav-heading">WORKSPACE</p>
       <Link className="nav-link active" href="/">Overview</Link>
       <Link className="nav-link" href="/account">My account</Link>
