@@ -8,8 +8,8 @@
     "apps/api"
   ],
   "engines": {
-    "node": ">=22.12.0",
-    "npm": ">=10.9.0"
+    "node": "22.x",
+    "npm": ">=10"
   },
   "scripts": {
     "dev": "concurrently -n web,api -c blue,green \"npm:dev:web\" \"npm:dev:api\"",
@@ -17,7 +17,8 @@
     "dev:api": "npm --workspace @cit-lms/api run dev",
     "build": "npm run build --workspace @cit-lms/api && npm run build --workspace @cit-lms/web",
     "typecheck": "npm run typecheck --workspace @cit-lms/api && npm run typecheck --workspace @cit-lms/web",
-    "test": "npm run test --workspace @cit-lms/api"
+    "test": "npm run test --workspace @cit-lms/api",
+    "vercel-build": "npm run build --workspace @cit-lms/web"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
