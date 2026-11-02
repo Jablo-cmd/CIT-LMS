@@ -35,4 +35,4 @@ The frontend runs on http://localhost:3000 and the API on http://localhost:4000.
 - No default owner account or production password is included. Owner provisioning must be a controlled, one-time process.
 
 ## Project status
-Active development. The development branch contains employee management, leave, overtime, documents, posting sites, disciplinary and recommendation screens, plus reporting and owner administration. It is **not production-ready yet**; wait for green CI, migration creation, database-backed tests, security review and production deployment hardening. See `docs/functional-specification.md` and `docs/technical-architecture.md` for agreed scope and architecture.
+Core modules are implemented and verified locally (unit tests, API smoke, production builds). Production still requires Render Postgres, secrets, owner bootstrap, durable document storage, and a staging dry-run. See `docs/DEPLOYMENT_RENDER.md` and `render.yaml`.
