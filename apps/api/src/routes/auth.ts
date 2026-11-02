@@ -19,9 +19,15 @@ authRouter.post("/login", async (req, res, next) => {
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await prisma.auditLog.create({ data: { userId:user.id, action:"LOGIN", entityType:"User", entityId:user.id, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
     const token = jwt.sign({ role: user.role, tokenVersion: user.tokenVersion }, config.JWT_ACCESS_SECRET, { subject: user.id, expiresIn: config.JWT_ACCESS_TTL as jwt.SignOptions["expiresIn"] });
+    const secure = config.COOKIE_SECURE === "true";
+    // Cross-origin web ↔ API on separate Render hosts requires SameSite=None with Secure.
+    // Same-origin / localhost can keep Strict.
     res.cookie("cit_session", token, {
-      httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict",
-      maxAge: 15 * 60 * 1000, path: "/"
+      httpOnly: true,
+      secure,
+      sameSite: secure ? "none" : "strict",
+      maxAge: 15 * 60 * 1000,
+      path: "/"
     });
     return res.json({ user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role } });
   } catch (error) { return next(error); }
@@ -36,7 +42,7 @@ authRouter.post("/change-password", requireAuth, async (req, res, next) => {
     const passwordHash = await argon2.hash(input.newPassword);
     await prisma.user.update({ where: { id: user.id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
     await prisma.auditLog.create({ data: { userId: user.id, action: "CHANGE_PASSWORD", entityType: "User", entityId: user.id, ipAddress: req.ip, userAgent: req.get("user-agent")?.slice(0,500) } });
-    res.clearCookie("cit_session", { httpOnly:true, secure:config.COOKIE_SECURE==="true", sameSite:"strict", path:"/" });
+    res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: config.COOKIE_SECURE === "true" ? "none" : "strict", path: "/" });
     return res.json({ message: "Password changed. Please sign in again." });
   } catch(e){return next(e);}
 });
@@ -45,7 +51,7 @@ authRouter.post("/logout", requireAuth, async (req, res, next) => {
   try {
     await prisma.auditLog.create({ data: { userId:req.auth!.userId, action:"LOGOUT", entityType:"User", entityId:req.auth!.userId, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
     await prisma.user.update({ where: { id:req.auth!.userId }, data: { tokenVersion: { increment: 1 } } });
-    res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: "strict", path: "/" });
+    res.clearCookie("cit_session", { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: config.COOKIE_SECURE === "true" ? "none" : "strict", path: "/" });
     return res.status(204).end();
   } catch(e){return next(e);}
 });
