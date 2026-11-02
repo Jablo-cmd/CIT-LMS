@@ -3,7 +3,7 @@
 import { FormEvent,useEffect,useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { API_URL,api } from "../../../lib/api";
+import { api, getDocumentDownloadUrl, getEmployeePhotoUrl } from "../../../lib/api";
 
 type Kin={id:string;fullName:string;relationship:string;phone:string;email?:string|null;isPrimary:boolean};
 type Document={id:string;title:string;category:string;originalName:string;sizeBytes:number;uploadedAt:string;uploadedBy?:{fullName:string}};
@@ -16,10 +16,20 @@ export default function EmployeeProfilePage(){
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [kin,setKin]=useState({fullName:"",relationship:"",phone:"",email:"",isPrimary:false});
   const [docMeta,setDocMeta]=useState({title:"",category:"EMPLOYMENT",description:""});const [docFile,setDocFile]=useState<File|null>(null);const [photo,setPhoto]=useState<File|null>(null);
   const [assignment,setAssignment]=useState({newPosition:"",newDeployedRole:"",newPostingId:"",effectiveDate:"",reason:"Initial appointment",managerName:"",supportingDocumentId:""});
+  const [photoUrl,setPhotoUrl]=useState<string|null>(null);
   async function load(){
     try{
-      const [profile,docs]=await Promise.all([api<{employee:Employee}>(`/employees/${id}`),api<{items:Document[]}>(`/documents/employee/${id}`)]);
-      setEmployee(profile.employee);setDocuments(docs.items);
+      const [session, profileRes, sitesRes] = await Promise.all([
+        api<{user:{role:string}}>("/auth/me"),
+        api<{employee:Employee;documents?:Document[]}>(`/employees/${id}`),
+        api<{items:Site[]}>("/postings/sites")
+      ]);
+      setRole(session.user.role);
+      setEmployee(profileRes.employee);
+      setDocuments(profileRes.documents ?? []);
+      setSites(sitesRes.items);
+      const url = await getEmployeePhotoUrl(id);
+      setPhotoUrl(url);
     }catch(e){setError(e instanceof Error?e.message:"Could not load employee profile");}
   }
   useEffect(()=>{void load();},[id]);
@@ -27,15 +37,15 @@ export default function EmployeeProfilePage(){
   async function addKin(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{await api(`/employees/${id}/next-of-kin`,{method:"POST",body:JSON.stringify(kin)});setKin({fullName:"",relationship:"",phone:"",email:"",isPrimary:false});await load();}catch(e){setError(e instanceof Error?e.message:"Could not save next of kin");}finally{setBusy(false);}}
   async function uploadDoc(e:FormEvent){e.preventDefault();if(!docFile)return;setBusy(true);setError("");try{const body=new FormData();body.set("file",docFile);body.set("title",docMeta.title);body.set("category",docMeta.category);body.set("description",docMeta.description);await api(`/documents/${id}`,{method:"POST",body});setDocFile(null);setDocMeta({title:"",category:"EMPLOYMENT",description:""});await load();}catch(e){setError(e instanceof Error?e.message:"Could not upload document");}finally{setBusy(false);}}
   async function uploadPhoto(){if(!photo)return;setBusy(true);setError("");try{const body=new FormData();body.set("file",photo);await api(`/documents/photos/${id}`,{method:"POST",body});setPhoto(null);await load();}catch(e){setError(e instanceof Error?e.message:"Could not update photograph");}finally{setBusy(false);}}
-  async function download(doc:Document){try{const response=await fetch(`${API_URL}/documents/${doc.id}/download`,{credentials:"include"});if(!response.ok)throw new Error("Unable to download document");const blob=await response.blob();const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=doc.originalName;a.click();URL.revokeObjectURL(url);}catch(e){setError(e instanceof Error?e.message:"Download failed");}}
+  async function download(doc:Document){try{const {url,fileName}=await getDocumentDownloadUrl(doc.id);const a=document.createElement("a");a.href=url;a.download=fileName||doc.originalName||doc.title;a.target="_blank";a.rel="noopener";a.click();}catch(e){setError(e instanceof Error?e.message:"Download failed");}}
   if(!employee)return <main className="content"><Link href="/employees" className="back-link">← Employee directory</Link><div className="empty-state">{error||"Loading employee profile…"}</div></main>;
-  const photoUrl=`${API_URL}/documents/photos/${id}`;
+
   return <main className="content">
     <div className="page-heading"><div><p className="eyebrow">EMPLOYEE RECORD · {employee.employeeNumber}</p><h1>{employee.firstName} {employee.lastName}</h1><p className="lead">{employee.currentPosition||"Position not assigned"} · {employee.currentPosting?.name||"Head Office / No external posting"}</p></div><div className="profile-actions"><Link href={`/employees/${id}/edit`} className="primary-link">Edit employee</Link><Link href="/employees" className="back-link">← Employee directory</Link></div></div>
     {error&&<p className="form-error">{error}</p>}
     <div className="profile-grid">
       <section className="panel profile-card">
-        <div className="profile-photo"><img src={photoUrl} alt="" onError={e=>{(e.currentTarget as HTMLImageElement).style.display="none";}}/><span>{employee.firstName[0]}{employee.lastName[0]}</span></div>
+        <div className="profile-photo">{photoUrl ? <img src={photoUrl} alt="" onError={e=>{(e.currentTarget as HTMLImageElement).style.display="none";}}/> : null}<span>{employee.firstName[0]}{employee.lastName[0]}</span></div>
         <h2>{employee.firstName} {employee.lastName}</h2><p>{employee.employeeNumber}</p><span className={`status status-${employee.employmentStatus.toLowerCase()}`}>{employee.employmentStatus}</span>
         {role!=="ADMIN_PERSONNEL"&&<div className="photo-upload"><label className="form-field">Update photograph<input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={e=>setPhoto(e.target.files?.[0]??null)}/></label><button className="secondary-button" disabled={!photo||busy} onClick={()=>void uploadPhoto()}>Upload photo</button></div>}
       </section>
