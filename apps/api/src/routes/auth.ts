@@ -20,7 +20,7 @@ authRouter.post("/login", async (req, res, next) => {
     await prisma.auditLog.create({ data: { userId:user.id, action:"LOGIN", entityType:"User", entityId:user.id, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
     const token = jwt.sign({ role: user.role, tokenVersion: user.tokenVersion }, config.JWT_ACCESS_SECRET, { subject: user.id, expiresIn: config.JWT_ACCESS_TTL as jwt.SignOptions["expiresIn"] });
     const secure = config.COOKIE_SECURE === "true";
-    // Cross-origin web ↔ API on separate Render hosts requires SameSite=None with Secure.
+    // Cross-origin web and API deployments require SameSite=None with Secure.
     // Same-origin / localhost can keep Strict.
     res.cookie("cit_session", token, {
       httpOnly: true,

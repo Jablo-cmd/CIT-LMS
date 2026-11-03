@@ -2,8 +2,10 @@ import "dotenv/config";
 import argon2 from "argon2";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db.js";
+import { getObject } from "../services/document-storage.js";
 
 const base = process.env.SMOKE_API_URL ?? "http://127.0.0.1:4000/api";
+const trustedOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
 const suffix = randomUUID().slice(0, 8);
 const ownerEmail = `owner-${suffix}@cit-lms.test`;
 const hrEmail = `hr-${suffix}@cit-lms.test`;
@@ -14,11 +16,12 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE TEST FAILED: ${message}`);
 }
 
-async function request(path: string, cookie?: string, method = "GET", body?: unknown, expectedStatus = 200) {
+async function request(path: string, cookie?: string, method = "GET", body?: unknown, expectedStatus = 200, origin: string | null = method === "GET" ? null : trustedOrigin) {
   const response = await fetch(`${base}${path}`, {
     method,
     headers: {
       ...(cookie ? { Cookie: cookie } : {}),
+      ...(origin ? { Origin: origin } : {}),
       ...(body !== undefined ? { "Content-Type": "application/json" } : {})
     },
     body: body === undefined ? undefined : JSON.stringify(body)
@@ -38,6 +41,16 @@ async function login(email: string, password: string): Promise<string> {
 }
 
 async function main() {
+  const priorSmokePolicies = await prisma.leavePolicy.findMany({
+    where: { name: { in: ["CI Annual Leave", "CI 2025 Annual Policy"] } },
+    select: { id: true }
+  });
+  const priorSmokePolicyIds = priorSmokePolicies.map(policy => policy.id);
+  if (priorSmokePolicyIds.length) {
+    await prisma.leaveTransaction.deleteMany({ where: { policyId: { in: priorSmokePolicyIds } } });
+    await prisma.leavePolicy.deleteMany({ where: { id: { in: priorSmokePolicyIds } } });
+  }
+
   const health = await request("/health");
   assert(health.payload.database === "connected", "health check must confirm PostgreSQL connectivity");
 
@@ -54,6 +67,8 @@ async function main() {
   const hrCookie = await login(hrEmail, hrPassword);
   const adminCookie = await login(adminEmail, adminPassword);
 
+  await request("/users", ownerCookie, "POST", { email: `csrf-missing-${suffix}@cit-lms.test`, fullName: "Blocked Missing Origin", password: initialPassword, role: "ADMIN_PERSONNEL" }, 403, null);
+  await request("/users", ownerCookie, "POST", { email: `csrf-untrusted-${suffix}@cit-lms.test`, fullName: "Blocked Untrusted Origin", password: initialPassword, role: "ADMIN_PERSONNEL" }, 403, "https://untrusted.example");
   await request("/users", hrCookie, "GET", undefined, 403);
   await request("/disciplinary", adminCookie, "GET", undefined, 403);
   await request("/reports/overview", adminCookie);
@@ -79,11 +94,25 @@ async function main() {
   upload.set("title", "CI appointment letter");
   upload.set("category", "EMPLOYMENT");
   upload.set("file", new Blob([Buffer.from("%PDF-1.4\nCIT LMS CI test document")], { type: "application/pdf" }), "appointment.pdf");
-  const uploadResponse = await fetch(`${base}/documents/${employeeId}`, { method: "POST", headers: { Cookie: hrCookie }, body: upload });
+  const invalidUpload = new FormData();
+  invalidUpload.set("title", "Invalid CI upload");
+  invalidUpload.set("category", "EMPLOYMENT");
+  invalidUpload.set("file", new Blob(["not a PDF"], { type: "application/pdf" }), "invalid.pdf");
+  const invalidUploadResponse = await fetch(`${base}/documents/${employeeId}`, { method: "POST", headers: { Cookie: hrCookie, Origin: trustedOrigin }, body: invalidUpload });
+  assert(invalidUploadResponse.status === 415, "upload must reject content whose signature does not match its extension");
+  const sensitiveUpload = new FormData();
+  sensitiveUpload.set("title", "Forbidden identity upload");
+  sensitiveUpload.set("category", "IDENTITY_PERSONAL");
+  sensitiveUpload.set("file", new Blob([Buffer.from("%PDF-1.4\nCIT LMS restricted test")], { type: "application/pdf" }), "identity.pdf");
+  const sensitiveUploadResponse = await fetch(`${base}/documents/${employeeId}`, { method: "POST", headers: { Cookie: adminCookie, Origin: trustedOrigin }, body: sensitiveUpload });
+  assert(sensitiveUploadResponse.status === 403, "administrative personnel must not upload sensitive identity documents");
+  const uploadResponse = await fetch(`${base}/documents/${employeeId}`, { method: "POST", headers: { Cookie: hrCookie, Origin: trustedOrigin }, body: upload });
   assert(uploadResponse.status === 201, `employee document upload should succeed, received ${uploadResponse.status}`);
   const uploaded = await uploadResponse.json() as { document: { id: string } };
   const downloaded = await fetch(`${base}/documents/${uploaded.document.id}/download`, { headers: { Cookie: hrCookie } });
   assert(downloaded.status === 200, "authorised HR user must download the uploaded document");
+  const deniedDownload = await fetch(`${base}/documents/${uploaded.document.id}/download`, { headers: { Cookie: adminCookie } });
+  assert(deniedDownload.status === 200, "administrative personnel may download non-sensitive employment documents");
   const downloadedText = Buffer.from(await downloaded.arrayBuffer()).toString("utf8");
   assert(downloadedText.startsWith("%PDF-1.4"), "downloaded document must match uploaded content");
 
@@ -96,6 +125,36 @@ async function main() {
   });
   const adminDocs = await request("/documents", adminCookie);
   assert(!adminDocs.payload.items.some((item: { id: string }) => item.id === identityDoc.id), "administrative personnel must not see identity documents");
+  const forbiddenIdentityDownload = await fetch(`${base}/documents/${identityDoc.id}/download`, { headers: { Cookie: adminCookie } });
+  assert(forbiddenIdentityDownload.status === 403, "forbidden download must be denied before a missing private object is accessed");
+  await request(`/documents/${uploaded.document.id}/download`, undefined, "GET", undefined, 401);
+  await request(`/documents/${uploaded.document.id}/download`, adminCookie, "GET", undefined, 200);
+
+  const firstPhoto = new FormData();
+  firstPhoto.set("file", new Blob([Buffer.from([137,80,78,71,13,10,26,10,1])], { type: "image/png" }), "first.png");
+  const firstPhotoResponse = await fetch(`${base}/documents/photos/${employeeId}`, { method: "POST", headers: { Cookie: hrCookie, Origin: trustedOrigin }, body: firstPhoto });
+  assert(firstPhotoResponse.status === 200, "HR must be able to upload a valid employee photo");
+  const previousPhoto = await prisma.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { photoPath: true } });
+  const replacementPhotoBytes = Buffer.from([137,80,78,71,13,10,26,10,2]);
+  const replacementPhoto = new FormData();
+  replacementPhoto.set("file", new Blob([replacementPhotoBytes], { type: "image/png" }), "replacement.png");
+  const replacementPhotoResponse = await fetch(`${base}/documents/photos/${employeeId}`, { method: "POST", headers: { Cookie: hrCookie, Origin: trustedOrigin }, body: replacementPhoto });
+  assert(replacementPhotoResponse.status === 200, "HR must be able to replace an employee photo");
+  const currentPhotoResponse = await fetch(`${base}/documents/photos/${employeeId}`, { headers: { Cookie: hrCookie } });
+  assert(currentPhotoResponse.status === 200, "authenticated HR must retrieve the replacement photo through the protected route");
+  assert(Buffer.from(await currentPhotoResponse.arrayBuffer()).equals(replacementPhotoBytes), "protected photo route must return the replacement bytes");
+  const unauthenticatedPhotoResponse = await fetch(`${base}/documents/photos/${employeeId}`);
+  assert(unauthenticatedPhotoResponse.status === 401, "employee photos must not be retrievable without authentication");
+  const currentPhoto = await prisma.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { photoPath: true } });
+  assert(currentPhoto.photoPath !== previousPhoto.photoPath, "photo replacement must update the private storage key");
+  await getObject(previousPhoto.photoPath!).then(
+    () => { throw new Error("SMOKE TEST FAILED: replaced photo object should be removed"); },
+    () => undefined
+  );
+  const forbiddenPhotoUpload = new FormData();
+  forbiddenPhotoUpload.set("file", new Blob([replacementPhotoBytes], { type: "image/png" }), "forbidden.png");
+  const forbiddenPhotoResponse = await fetch(`${base}/documents/photos/${employeeId}`, { method: "POST", headers: { Cookie: adminCookie, Origin: trustedOrigin }, body: forbiddenPhotoUpload });
+  assert(forbiddenPhotoResponse.status === 403, "administrative personnel must not upload or replace employee photos");
 
   await request(`/postings/history/${employeeId}`, hrCookie, "POST", {
     newPosition: "CI Operations Assistant", effectiveDate: "2020-01-01",

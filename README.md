@@ -18,7 +18,7 @@ An internal HR records application for employee profiles, employment and posting
 
 ## Local setup
 1. Copy `apps/api/env.template` to `apps/api/.env` and `apps/web/.env.example` to `apps/web/.env.local`.
-2. Replace `JWT_ACCESS_SECRET` with a cryptographically random secret of at least 32 characters. If you change the PostgreSQL password, update both Docker Compose's `POSTGRES_PASSWORD` and the API `DATABASE_URL`.
+2. Replace `JWT_ACCESS_SECRET` with a cryptographically random secret of at least 32 characters. The bundled database publishes on port `5433` to avoid conflicts with a host PostgreSQL service. If you change the PostgreSQL password, update both Docker Compose's `POSTGRES_PASSWORD` and the API `DATABASE_URL`.
 3. Start PostgreSQL: `docker compose up -d postgres`.
 4. Install dependencies from the repository root: `npm install`.
 5. Generate Prisma Client: `npm run db:generate --workspace @cit-lms/api`.
@@ -35,4 +35,4 @@ The frontend runs on http://localhost:3000 and the API on http://localhost:4000.
 - No default owner account or production password is included. Owner provisioning must be a controlled, one-time process.
 
 ## Project status
-Core modules are implemented and verified locally (unit tests, API smoke, production builds). Production still requires Render Postgres, secrets, owner bootstrap, durable document storage, and a staging dry-run. See `docs/DEPLOYMENT_RENDER.md` and `render.yaml`.
+Core modules are implemented and verified locally (unit tests, API smoke, production builds). Production still requires Vercel project configuration, Supabase Postgres and private document storage, owner bootstrap, and a production smoke test. See [docs/DEPLOYMENT_VERCEL.md](docs/DEPLOYMENT_VERCEL.md).

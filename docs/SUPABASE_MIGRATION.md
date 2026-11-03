@@ -1,41 +1,27 @@
-# CIT-LMS Supabase migration
+# Managed Postgres and storage notes
 
-Branch: `feature/supabase-migration`
+The final architecture keeps Prisma and the Express API as the system source of truth. Supabase is only used where it adds value: managed PostgreSQL hosting and private document storage.
 
-## Architecture
+## Allowed use
 
-| Concern | Before | After |
-|---------|--------|--------|
-| Database | Self-hosted Postgres + Prisma | Supabase Postgres |
-| Auth | Express JWT cookie | Supabase Auth |
-| Authorisation | Express allowRoles | RLS + profiles.role |
-| Documents | Local filesystem | Private bucket employee-documents |
-| Leave calc | Node service | SQL RPCs + TS parity |
-| Frontend | Next.js to Express | Next.js to Supabase |
+- Postgres hosting for the application database.
+- Private object storage for employee documents and signed-file retrieval.
+- Secure deployment-level configuration, not browser authentication.
 
-Roles: COMPANY_OWNER, HR_MANAGER, ADMIN_PERSONNEL (stored only in public.profiles).
+## Not allowed in this project
 
-## Migrations (apply in order)
+- Supabase Auth as the primary session system.
+- Supabase client-side auth flows in the Next.js app.
+- Replacing the Prisma schema with a separate Supabase schema.
+- Public storage buckets or direct client-to-storage access for employee documents.
 
-1. `supabase/migrations/20261102120000_init_cit_lms.sql` — tables + leave RPCs
-2. `supabase/migrations/20261102120050_rls_and_grants.sql` — RLS
-3. `supabase/migrations/20261102120100_storage_and_seed_helpers.sql` — storage + owner bootstrap
+## Configuration pattern
 
-## Setup
+1. Configure the API with the managed Postgres connection string.
+2. Run Prisma migrations from the API project.
+3. Keep the browser app pointed at the API base URL.
+4. Use a separate private bucket for documents and generate files only through the backend.
 
-1. Create Supabase project; disable public sign-ups.
-2. Run the three SQL migrations (Dashboard SQL or `supabase db push`).
-3. Create Auth user; as service_role call `select public.bootstrap_owner_profile('<uuid>', 'email', 'Name');`
-4. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` on the web app.
-5. Never expose the service_role key to the browser.
+The API requires `STORAGE_DRIVER=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` in production. It validates that the bucket exists and is not public before listening. The service-role key must never be set in the web app. Downloads are authorized by Express, fetched through an internally generated 60-second signed URL, and proxied to the caller.
 
-## Status
-
-| Item | Status |
-|------|--------|
-| Schema + RLS + leave RPC | Implemented |
-| Storage policies | Implemented |
-| Auth login + middleware session | Implemented on branch |
-| Remaining screens still on Express api.ts | Dual-run pending |
-| Live Supabase project / RLS live tests | Requires your project |
-| Express/Prisma removal | After full page cutover |
+This keeps the platform choice flexible without creating a second auth or data layer in the application.

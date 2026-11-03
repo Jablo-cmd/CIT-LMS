@@ -1,57 +1,72 @@
-# CIT-LMS production go-live (Supabase + Next.js)
+# CIT-LMS production go-live checklist
 
-## 1. Apply database (required once)
+This project keeps the final architecture: Next.js frontend, Express API, Prisma schema, and PostgreSQL as the source of truth. Supabase is used only as a managed PostgreSQL host and private document-storage backend when required by deployment.
 
-SQL Editor → run the three numbered migrations in order under `supabase/migrations/`,
-or the combined `APPLY_ALL_PRODUCTION.sql` if present.
+## 1. Production environment
 
-## 2. Auth settings
+- Frontend: Next.js app served from the production host.
+- API: Node.js Express service with JWT cookies and server-side role checks.
+- Database: managed PostgreSQL instance, preferably Supabase Postgres or a comparable managed Postgres provider.
+- Document storage: private bucket or equivalent secure object storage, not a public static path.
 
-- Authentication → Providers → Email enabled
-- Disable public sign-ups
-- Site URL = production frontend URL
-- Redirect URLs include `https://<frontend>/login`
+## 2. Database setup
 
-## 3. Create Company Owner
+1. Provision a managed PostgreSQL database.
+2. Apply the Prisma schema with migrations in the API project.
+3. Configure the API environment with a production database URL and the required secret values.
+4. Confirm the app can connect and run the Prisma client in production.
 
-1. Authentication → Users → Add user (email + strong password)
-2. Copy the user UUID
-3. SQL Editor:
+Use the API project as the single source of truth for schema changes. Do not maintain a separate live SQL schema in the frontend repository.
 
-```sql
-select public.bootstrap_owner_profile(
-  '<user-uuid>'::uuid,
-  'owner@your-domain',
-  'Owner Full Name'
-);
+## 3. Auth and authorization
+
+- Keep authentication in the Express API, not in the browser.
+- Use secure HTTP-only cookies for session transport.
+- Keep role enforcement in server middleware and route guards.
+- Require a trusted `Origin` or `Referer` on unsafe requests and reject cross-site Fetch Metadata.
+- Do not trust frontend-only visibility as access control.
+
+## 4. Document storage
+
+- Create a private storage bucket for employee documents.
+- Set `STORAGE_DRIVER=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` on the API service only.
+- Store only signed URLs or server-generated retrieval responses when files are requested.
+- Prevent public access to the bucket and keep the storage path outside any public web root.
+- Validate upload type, size, and file names before persisting.
+- The API refuses to start if the configured bucket is missing or public.
+
+## 5. Frontend environment
+
+```env
+NEXT_PUBLIC_API_URL=https://api.example.com
 ```
 
-## 4. Frontend env
+The browser should only know the API base URL. It should never receive a database secret, auth secret, or storage credentials.
 
+## 6. Deployment commands
+
+```bash
+npm install
+npm run build
+npm run start --workspace @cit-lms/api
+npm run start --workspace @cit-lms/web
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable key only>
-```
 
-Never put the secret key in frontend env or git.
+For hosted deployment, keep the API and web app in separate runtime environments unless the platform explicitly supports both behind a single secure setup.
 
-## 5. Deploy
+## 7. Smoke checklist
 
-Root: `apps/web`. Build: `npm install && npm run build`. Start: `npm start`.
-Or Vercel with Root Directory = `apps/web`.
+- Sign in and sign out with the API-issued cookie session.
+- Load the dashboard and confirm role-based access.
+- Create and read employee records.
+- Submit leave and overtime records.
+- Verify document upload and retrieval are restricted to the right roles.
+- Confirm audit logs record protected changes.
 
-## 6. Smoke checklist
+## 8. Security hygiene
 
-- Login / logout
-- Home session + counts
-- Create synthetic employee
-- Capture leave
-- Admin cannot access disciplinary; HR can
-
-## 7. Key hygiene
-
-If secret keys were shared in chat, rotate them in Project Settings → API.
-
-## 8. Express API
-
-Not required when using the Supabase `lib/api.ts` adapter on this branch.
+- Rotate all secrets before production launch.
+- Never commit environment files.
+- Use HTTPS only.
+- Keep backups, retention, and restore drills in place.
+- Review access control before exposing the application to real HR data.

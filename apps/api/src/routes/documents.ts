@@ -1,13 +1,14 @@
 import { Router } from "express";
 import multer from "multer";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { config } from "../config.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { persistPrivateObject } from "../services/document-persistence.js";
+import { createSignedDownloadUrl, getObject, removeObject, saveObject } from "../services/document-storage.js";
 
 export const documentsRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -24,6 +25,9 @@ function validSignature(buffer: Buffer, extension: string) {
   return false;
 }
 function isSensitiveCategory(category: string) { return category === "IDENTITY_PERSONAL"; }
+function mimeTypeFor(extension: string) {
+  return ({ ".pdf": "application/pdf", ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png" } as Record<string, string>)[extension] ?? "application/octet-stream";
+}
 
 
 documentsRouter.get("/", allStaff, async (req, res, next) => {
@@ -62,6 +66,7 @@ documentsRouter.get("/employee/:employeeId", allStaff, async (req, res, next) =>
 documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: "A document file is required" });
+    const uploadedFile = req.file;
     const input = z.object({
       title: z.string().trim().min(2).max(150),
       category: z.enum(["ACADEMIC_QUALIFICATION","PROFESSIONAL_CERTIFICATE","TRAINING_CERTIFICATE","IDENTITY_PERSONAL","EMPLOYMENT","OTHER"]),
@@ -70,32 +75,34 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
     if (req.auth!.role === "ADMIN_PERSONNEL" && isSensitiveCategory(input.category)) return res.status(403).json({ error: "Only HR or the Company Owner may upload identity and personal documents" });
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { id: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const extension = path.extname(req.file.originalname).toLowerCase();
-    if (!allowedExtensions.has(extension) || !validSignature(req.file.buffer, extension)) return res.status(415).json({ error: "File content does not match an allowed PDF, Word, JPG or PNG format" });
-    const safeOriginalName = path.basename(req.file.originalname).replace(/[\u0000-\u001f]/g, "").slice(0, 180);
-    const relativePath = path.join(employee.id, `${randomUUID()}${extension}`);
-    const root = path.resolve(config.STORAGE_ROOT);
-    const target = path.resolve(root, relativePath);
-    if (!target.startsWith(root + path.sep)) return res.status(400).json({ error: "Invalid storage path" });
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, req.file.buffer, { flag: "wx", mode: 0o600 });
-    try {
-      const document = await prisma.employeeDocument.create({
+    const extension = path.extname(uploadedFile.originalname).toLowerCase();
+    if (!allowedExtensions.has(extension) || !validSignature(uploadedFile.buffer, extension)) return res.status(415).json({ error: "File content does not match an allowed PDF, Word, JPG or PNG format" });
+    const safeOriginalName = path.basename(uploadedFile.originalname).replace(/[\u0000-\u001f]/g, "").slice(0, 180);
+    const storageKey = `${employee.id}/${randomUUID()}${extension}`;
+    const mimeType = mimeTypeFor(extension);
+    let documentId: string | undefined;
+    const document = await persistPrivateObject({
+      save: () => saveObject(storageKey, uploadedFile.buffer, mimeType),
+      commit: async () => {
+        const created = await prisma.employeeDocument.create({
         data: {
           employeeId: employee.id, title: input.title, category: input.category,
-          originalName: safeOriginalName, storagePath: relativePath,
-          mimeType: req.file.mimetype, sizeBytes: req.file.size,
+          originalName: safeOriginalName, storagePath: storageKey,
+          mimeType, sizeBytes: uploadedFile.size,
           description: input.description, uploadedById: req.auth!.userId
         },
         select: { id: true, title: true, category: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true }
       });
-      await writeAudit(req, "UPLOAD", "EmployeeDocument", document.id, undefined, document);
-      return res.status(201).json({ document });
-    } catch (error) {
-      const { unlink } = await import("node:fs/promises");
-      await unlink(target).catch(() => undefined);
-      throw error;
-    }
+        documentId = created.id;
+        await writeAudit(req, "UPLOAD", "EmployeeDocument", created.id, undefined, created);
+        return created;
+      },
+      rollback: async () => {
+        if (documentId) await prisma.employeeDocument.delete({ where: { id: documentId } });
+      },
+      removeNew: () => removeObject(storageKey)
+    });
+    return res.status(201).json({ document });
   } catch (e) { return next(e); }
 });
 
@@ -104,12 +111,11 @@ documentsRouter.get("/photos/:employeeId", allStaff, async (req, res, next) => {
   try {
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { photoPath: true } });
     if (!employee?.photoPath) return res.status(404).json({ error: "Employee photograph not found" });
-    const root = path.resolve(config.STORAGE_ROOT);
-    const target = path.resolve(root, employee.photoPath);
-    if (!target.startsWith(root + path.sep)) return res.status(400).json({ error: "Invalid photograph path" });
-    return res.sendFile(target, { headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } }, error => {
-      if (error && !res.headersSent) next(error);
-    });
+    const signedUrl = await createSignedDownloadUrl(employee.photoPath);
+    if (signedUrl) return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).redirect(302, signedUrl);
+    const photo = await getObject(employee.photoPath);
+    const contentType = mimeTypeFor(path.posix.extname(employee.photoPath).toLowerCase());
+    return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).type(contentType).send(photo.body);
   } catch (e) { return next(e); }
 });
 
@@ -118,27 +124,38 @@ documentsRouter.get("/:id/download", allStaff, async (req, res, next) => {
     const document = await prisma.employeeDocument.findUnique({ where: { id: String(req.params.id) }, include: { disciplinary: { select: { id: true } } } });
     if (!document) return res.status(404).json({ error: "Document not found" });
     if (req.auth!.role === "ADMIN_PERSONNEL" && (isSensitiveCategory(document.category) || document.disciplinary.length > 0)) return res.status(403).json({ error: "You do not have permission to access this document" });
-    const root = path.resolve(config.STORAGE_ROOT);
-    const target = path.resolve(root, document.storagePath);
-    if (!target.startsWith(root + path.sep)) return res.status(400).json({ error: "Invalid document path" });
-    return res.download(target, document.originalName);
+    const signedUrl = await createSignedDownloadUrl(document.storagePath, document.originalName);
+    if (signedUrl) return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).redirect(302, signedUrl);
+    const stored = await getObject(document.storagePath);
+    return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).type(document.mimeType).attachment(document.originalName).send(stored.body);
   } catch (e) { return next(e); }
 });
 
 documentsRouter.post("/photos/:employeeId", hrOnly, upload.single("file"), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: "A JPG or PNG photo is required" });
-    const extension = path.extname(req.file.originalname).toLowerCase();
-    if (![".jpg", ".jpeg", ".png"].includes(extension) || !validSignature(req.file.buffer, extension)) return res.status(415).json({ error: "Only valid JPG and PNG photographs are accepted" });
+    const uploadedFile = req.file;
+    const extension = path.extname(uploadedFile.originalname).toLowerCase();
+    if (![".jpg", ".jpeg", ".png"].includes(extension) || !validSignature(uploadedFile.buffer, extension)) return res.status(415).json({ error: "Only valid JPG and PNG photographs are accepted" });
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const relativePath = path.join(employee.id, `photo-${randomUUID()}${extension}`);
-    const root = path.resolve(config.STORAGE_ROOT);
-    const target = path.resolve(root, relativePath);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, req.file.buffer, { flag: "wx", mode: 0o600 });
-    const updated = await prisma.employee.update({ where: { id: employee.id }, data: { photoPath: relativePath, photoUpdatedAt: new Date() }, select: { id: true, photoUpdatedAt: true } });
-    await writeAudit(req, "UPDATE_PHOTO", "Employee", employee.id, { photoPath: employee.photoPath }, updated);
+    const storageKey = `${employee.id}/photo-${randomUUID()}${extension}`;
+    const updated = await persistPrivateObject({
+      save: () => saveObject(storageKey, uploadedFile.buffer, mimeTypeFor(extension)),
+      commit: async () => {
+        const result = await prisma.employee.update({ where: { id: employee.id }, data: { photoPath: storageKey, photoUpdatedAt: new Date() }, select: { id: true, photoUpdatedAt: true } });
+        await writeAudit(req, "UPDATE_PHOTO", "Employee", employee.id, { photoPath: employee.photoPath }, result);
+        return result;
+      },
+      rollback: async () => {
+        await prisma.employee.updateMany({
+        where: { id: employee.id, photoPath: storageKey },
+        data: { photoPath: employee.photoPath, photoUpdatedAt: employee.photoUpdatedAt }
+        });
+      },
+      removeNew: () => removeObject(storageKey),
+      ...(employee.photoPath ? { removePrevious: () => removeObject(employee.photoPath!) } : {})
+    });
     return res.json({ employee: updated });
   } catch (e) { return next(e); }
 });

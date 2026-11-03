@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "../../lib/supabase/data";
+import { api } from "../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +16,11 @@ export default function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      await signIn(email.trim().toLowerCase(), password);
+      await api<{ user: { id: string; email: string; fullName: string; role: string } }>('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+      });
       router.replace("/");
       router.refresh();
     } catch (e) {

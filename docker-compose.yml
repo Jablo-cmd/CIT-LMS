@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: cit_lms
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_change_me}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - cit_lms_postgres:/var/lib/postgresql/data
     healthcheck:

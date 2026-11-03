@@ -4,14 +4,10 @@ import { PrismaClient } from "@prisma/client";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL must be configured before starting the API");
-
 const adapter = new PrismaPg({ connectionString });
-type PrismaGlobal = typeof globalThis & { prisma?: PrismaClient };
-const prismaGlobal = globalThis as PrismaGlobal;
-
-export const prisma = prismaGlobal.prisma ?? new PrismaClient({
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   adapter,
-  log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+  log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"]
 });
-
-if (process.env.NODE_ENV !== "production") prismaGlobal.prisma = prisma;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

@@ -20,6 +20,7 @@ import { calendarRouter } from "./routes/calendar.js";
 import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { requireAuth } from "./middleware/auth.js";
+import { protectCookieMutations } from "./middleware/csrf.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -29,7 +30,10 @@ app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
+app.use("/api", protectCookieMutations);
 app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/auth/change-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/users/:id/reset-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
 app.get("/api/health", async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; return res.json({ status: "ok", database: "connected", service: "cit-lms-api" }); }
   catch { return res.status(503).json({ status: "unavailable", database: "unavailable", service: "cit-lms-api" }); }
