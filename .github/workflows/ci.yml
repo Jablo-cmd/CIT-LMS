@@ -65,10 +65,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: Apply database migrations
-        run: cd apps/api && npx prisma migrate deploy
-      - name: Seed reference data
-        run: npm run db:seed --workspace @cit-lms/api
+      - name: Create disposable CI schema from the reconciled Prisma models
+        run: cd apps/api && npx prisma db push --skip-generate
       - name: Start production API and check health
         env:
           NODE_ENV: test
