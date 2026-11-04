@@ -15,6 +15,8 @@ export const configSchema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(() => process.env.VERCEL === "1" ? 4_194_304 : 10_485_760)
 }).superRefine((value, ctx) => {
   if (value.NODE_ENV === "production" && value.STORAGE_DRIVER !== "supabase") ctx.addIssue({ code: "custom", path: ["STORAGE_DRIVER"], message: "Production requires private Supabase Storage" });
+  if (value.NODE_ENV === "production" && value.COOKIE_SECURE !== "true") ctx.addIssue({ code: "custom", path: ["COOKIE_SECURE"], message: "Production authentication cookies must be Secure" });
+  if (value.NODE_ENV === "production" && value.WEB_ORIGIN === "http://localhost:3000") ctx.addIssue({ code: "custom", path: ["WEB_ORIGIN"], message: "Production requires the exact deployed web origin" });
   if (value.STORAGE_DRIVER === "supabase" || value.NODE_ENV === "production") {
     if (!value.SUPABASE_URL) ctx.addIssue({ code: "custom", path: ["SUPABASE_URL"], message: "SUPABASE_URL is required" });
     if (value.NODE_ENV === "production" && !value.SUPABASE_ANON_KEY) ctx.addIssue({ code: "custom", path: ["SUPABASE_ANON_KEY"], message: "A Supabase anon/publishable key is required for Auth" });
