@@ -1,6 +1,6 @@
 # CIT-LMS Technical Architecture
 
-**Status:** Supabase platform architecture accepted; implementation and production schema reconciliation are in progress.
+**Status:** Supabase platform architecture accepted; Prisma and API schema reconciliation implemented on `feat/supabase-platform-integration`; CI verification and live integration gates remain.
 
 ## 1. Confirmed technology direction
 
@@ -49,7 +49,7 @@ CIT-LMS/
 - PostgreSQL is the canonical application database.
 - Auth is the identity and credential provider.
 - Private Storage holds employee documents and photos.
-- RLS remains an additional database security layer; API checks do not justify exposing unrestricted table access to the browser.
+- RLS is enabled on the existing public application tables and protects direct Data API access. The API uses a trusted server-side PostgreSQL connection and privileged Storage key, so route-level authorization is mandatory and RLS is not assumed to be the API authorization boundary.
 
 ## 4. Data design principles
 
@@ -75,14 +75,15 @@ CIT-LMS/
 
 The existing Supabase project is authoritative. Its current schema differs from the original repository Prisma schema. The initial repository migration would create a conflicting schema and must not be deployed to production.
 
-The Prisma reconciliation is not complete. No production migrations, `db push`, seed, reset, or data modifications are authorized by this architecture decision. Complete the schema mapping and validate against an isolated test database first. Create and review a baseline/reconciliation plan separately before any production migration.
+The branch maps Prisma models, fields, enums, numeric precision, indexes, and relations to the existing schema. API route queries have been updated accordingly. CI runs `prisma db push` only against its disposable PostgreSQL service. The old incompatible initial migration is archived outside the active migration path, and the seed script requires explicit opt-in while refusing production/Vercel execution. No production migrations, `db push`, seed, reset, or data modifications are authorized. A production baseline/additive migration plan requires separate review and explicit approval.
 
 ## 7. Deployment gate
 
 Before production release:
-- Complete Prisma model/column/enum/relation mappings and update API queries.
+- Confirm CI Prisma validation, typecheck, tests, build, and disposable database smoke test.
 - Run Prisma validation/generation, TypeScript checks, unit/integration tests, and production build.
 - Configure the runtime database pooler DSN and server-side Supabase keys in Vercel.
-- Verify Auth, roles, CSRF/CORS, RLS, and private Storage in a preview environment.
+- Resolve or explicitly accept the existing Supabase security findings documented in `docs/PRODUCTION_SECURITY_REVIEW.md`.
+- Verify Auth, roles, CSRF/CORS, RLS, and private Storage in an isolated preview environment.
 - Confirm backups and tested restoration.
 - Obtain explicit approval for production release and any schema migration.
