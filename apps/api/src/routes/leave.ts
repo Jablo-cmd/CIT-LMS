@@ -66,7 +66,7 @@ leaveRouter.post("/policies", hrOnly, async (req, res, next) => {
 
 leaveRouter.post("/calculate", allStaff, async (req, res, next) => {
   try {
-    const input = z.object({ employeeId: z.string().min(1), firstLeaveDate: z.coerce.date(), lastLeaveDate: z.coerce.date() }).parse(req.body);
+    const input = z.object({ employeeId: z.string().uuid(), firstLeaveDate: z.coerce.date(), lastLeaveDate: z.coerce.date() }).parse(req.body);
     const days = await calculateWorkingLeaveDays(input.employeeId, input.firstLeaveDate, input.lastLeaveDate);
     return res.json({ workingDays: days, calendar: "Employee schedule, excluding configured South African public holidays" });
   } catch (e) { return next(e); }
@@ -211,7 +211,6 @@ leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
       const key = row.category;
       if (key === "UNPAID") continue;
       const previous = balances.get(key) ?? 0;
-      const days = Number(row.days);
       const next = previous + leaveLedgerDelta(row);
       balances.set(key, next);
     }
@@ -242,7 +241,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       formSubmissionDate: z.coerce.date().optional(),
       reason: z.string().max(2000).optional(),
       referenceNumber: z.string().max(100).optional(),
-      supportingDocumentId: z.string().min(1)
+      supportingDocumentId: z.string().uuid()
     }).parse(req.body);
     const days = await calculateWorkingLeaveDays(input.employeeId, input.firstLeaveDate, input.lastLeaveDate);
     if (days < 1) return res.status(400).json({ error: "The selected dates contain no scheduled working days" });
