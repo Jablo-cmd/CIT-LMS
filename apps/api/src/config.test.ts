@@ -30,6 +30,7 @@ describe("production configuration", () => {
       ...baseConfig,
       STORAGE_DRIVER: "supabase",
       SUPABASE_URL: "https://cit-lms.supabase.co",
+      SUPABASE_ANON_KEY: "test-anon-key",
       SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key"
     });
 
