@@ -26,8 +26,8 @@ const createSchema = z.object({
   originalHireDate: z.coerce.date(),
   contractStartDate: z.coerce.date().optional(),
   contractEndDate: z.coerce.date().optional(),
-  departmentId: z.string().optional(),
-  workingScheduleId: z.string().optional()
+  departmentId: z.string().uuid().optional(),
+  workingScheduleId: z.string().uuid().optional()
 }).superRefine((v, ctx) => {
   if (v.employmentType === "CONTRACT" && !v.contractStartDate) ctx.addIssue({ code: "custom", path: ["contractStartDate"], message: "Contract start date is required" });
   if (v.contractStartDate && v.contractEndDate && v.contractEndDate < v.contractStartDate) ctx.addIssue({ code: "custom", path: ["contractEndDate"], message: "Contract end date must follow start date" });
@@ -125,7 +125,7 @@ const updateSchema = z.object({
   employmentStatus: z.enum(["ACTIVE","SUSPENDED","RESIGNED","DISMISSED","DECEASED"]).optional(),
   contractStartDate: z.coerce.date().nullable().optional(),
   contractEndDate: z.coerce.date().nullable().optional(),
-  departmentId: z.string().nullable().optional(),
+  departmentId: z.string().uuid().nullable().optional(),
 }).refine(v => Object.keys(v).length > 0, { message: "At least one field must be supplied" });
 
 employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
@@ -136,7 +136,7 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
     const before = await prisma.employee.findUnique({ where: { id: String(req.params.id) } });
     if (!before) return res.status(404).json({ error: "Employee not found" });
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
-    const employee = await prisma.employee.update({ where: { id: String(req.params.id) }, data: input });
+    const employee = await prisma.employee.update({ where: { id: String(req.params.id) }, data: { ...input, ...(input.email === "" ? { email: null } : {}) } });
     await writeAudit(req, "UPDATE", "Employee", employee.id, before, employee);
     return res.json({ employee });
   } catch (error) { return next(error); }
