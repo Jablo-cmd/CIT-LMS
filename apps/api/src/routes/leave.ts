@@ -11,12 +11,6 @@ export const leaveRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
 const hrOnly = allowRoles("COMPANY_OWNER", "HR_MANAGER");
 
-function leaveLedgerDelta(transaction: { transactionType: string; days: unknown }): number {
-  const days = Number(transaction.days);
-  if (transaction.transactionType === "DEDUCTION") return -days;
-  if (transaction.transactionType === "ADJUSTMENT" || transaction.transactionType === "REVERSAL") return days;
-  return 0;
-}
 const policySchema = z.object({
   category: z.enum(["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY_PARENTAL","UNPAID","STUDY","OTHER"]),
   name: z.string().trim().min(2).max(100),
