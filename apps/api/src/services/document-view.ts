@@ -20,9 +20,10 @@ export function toDocumentView<T extends { title: string; mimeType: string; crea
     .replace(/[\u0000-\u001f]/g, "-")
     .trim()
     .slice(0, 120) || "employee-document";
+  const downloadName = Object.values(extensionByMimeType).some(ext => safeTitle.toLowerCase().endsWith(ext)) ? safeTitle : safeTitle + extension;
   return {
     ...document,
-    originalName: safeTitle + extension,
+    originalName: downloadName,
     description: null,
     uploadedAt: document.createdAt
   };
