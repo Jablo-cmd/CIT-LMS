@@ -13,16 +13,15 @@ function unavailablePrismaClient(): PrismaClient {
   });
 }
 
-const poolMax = process.env.VERCEL === "1" ? 1 : Math.max(1, Number(process.env.DB_POOL_MAX) || 10);
-const adapter = connectionString
-  ? new PrismaPg({ connectionString, max: poolMax, connectionTimeoutMillis: 5_000, idleTimeoutMillis: 10_000 })
-  : undefined;
+function createPrismaClient(): PrismaClient {
+  if (!connectionString) return unavailablePrismaClient();
+  const poolMax = process.env.VERCEL === "1" ? 1 : Math.max(1, Number(process.env.DB_POOL_MAX) || 10);
+  const adapter = new PrismaPg({ connectionString, max: poolMax, connectionTimeoutMillis: 5_000, idleTimeoutMillis: 10_000 });
+  return globalForPrisma.prisma ?? new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"]
+  });
+}
 
-export const prisma = connectionString
-  ? (globalForPrisma.prisma ?? new PrismaClient({
-      adapter,
-      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"]
-    }))
-  : unavailablePrismaClient();
-
+export const prisma = createPrismaClient();
 if (connectionString && process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
