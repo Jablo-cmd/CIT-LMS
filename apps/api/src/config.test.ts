@@ -4,6 +4,8 @@ import { configSchema } from "./config.js";
 const baseConfig = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://cit_lms:password@db.example.test:5432/cit_lms",
+  WEB_ORIGIN: "https://cit-lms.example",
+  COOKIE_SECURE: "true",
 };
 
 afterEach(() => vi.unstubAllEnvs());
@@ -13,6 +15,15 @@ describe("production configuration", () => {
     const result = configSchema.safeParse({ ...baseConfig, STORAGE_DRIVER: "local" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues.some(issue => issue.path.includes("STORAGE_DRIVER"))).toBe(true);
+  });
+
+  it("rejects insecure cookies and the localhost origin in production", () => {
+    const result = configSchema.safeParse({ ...baseConfig, COOKIE_SECURE: "false", WEB_ORIGIN: "http://localhost:3000" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some(issue => issue.path.includes("COOKIE_SECURE"))).toBe(true);
+      expect(result.error.issues.some(issue => issue.path.includes("WEB_ORIGIN"))).toBe(true);
+    }
   });
 
   it("requires server-side Supabase credentials when Supabase Storage is selected", () => {
