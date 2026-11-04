@@ -19,7 +19,7 @@ export const configSchema = z.object({
   if (value.NODE_ENV === "production" && value.STORAGE_DRIVER !== "supabase") ctx.addIssue({ code: "custom", path: ["STORAGE_DRIVER"], message: "Production requires private Supabase Storage" });
   if (value.STORAGE_DRIVER === "supabase" || value.NODE_ENV === "production") {
     if (!value.SUPABASE_URL) ctx.addIssue({ code: "custom", path: ["SUPABASE_URL"], message: "SUPABASE_URL is required" });
-    if (!value.SUPABASE_ANON_KEY) ctx.addIssue({ code: "custom", path: ["SUPABASE_ANON_KEY"], message: "A Supabase anon/publishable key is required for Auth" });
+    if (value.NODE_ENV === "production" && !value.SUPABASE_ANON_KEY) ctx.addIssue({ code: "custom", path: ["SUPABASE_ANON_KEY"], message: "A Supabase anon/publishable key is required for Auth" });
     if (!value.SUPABASE_SERVICE_ROLE_KEY) ctx.addIssue({ code: "custom", path: ["SUPABASE_SERVICE_ROLE_KEY"], message: "SUPABASE_SERVICE_ROLE_KEY is required for privileged server operations and Storage" });
   }
   if (process.env.VERCEL === "1" && value.MAX_UPLOAD_BYTES > 4_194_304) ctx.addIssue({ code: "custom", path: ["MAX_UPLOAD_BYTES"], message: "Vercel uploads must be limited to 4 MiB" });
