@@ -16,6 +16,11 @@ describe("document compatibility view", () => {
     expect(result.description).toBeNull();
   });
 
+  it("does not append a duplicate extension when the title already has one", () => {
+    const result = toDocumentView({ title: "Contract.pdf", mimeType: "application/pdf", createdAt: new Date("2026-10-31T12:30:00.000Z") });
+    expect(result.originalName).toBe("Contract.pdf");
+  });
+
   it("sanitizes path separators and control characters in download filenames", () => {
     const result = toDocumentView({
       title: "../private/" + String.fromCharCode(0) + "record",
