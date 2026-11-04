@@ -80,7 +80,7 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
       }
     });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const employeeView = { ...employee, documents: employee.documents.map(toDocumentView), history: employee.history.map(item => ({ ...item, supportingDocument: item.supportingDocument ? toDocumentView(item.supportingDocument) : null })) };
+    const employeeView = { ...employee, documents: employee.documents.map(toDocumentView), history: employee.history.map(item => ({ ...item, supportingDocument: item.supportingDocument && (req.auth!.role !== "ADMIN_PERSONNEL" || item.supportingDocument.category !== "IDENTITY_PERSONAL") ? toDocumentView(item.supportingDocument) : null })) };
     const { photoPath: _privatePhotoPath, ...publicEmployee } = employeeView;
     if (req.auth!.role === "ADMIN_PERSONNEL") {
       const safe = {
