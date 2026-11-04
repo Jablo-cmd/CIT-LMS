@@ -77,7 +77,6 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const extension = path.extname(uploadedFile.originalname).toLowerCase();
     if (!allowedExtensions.has(extension) || !validSignature(uploadedFile.buffer, extension)) return res.status(415).json({ error: "File content does not match an allowed PDF, Word, JPG or PNG format" });
-    const safeOriginalName = path.basename(uploadedFile.originalname).replace(/[\u0000-\u001f]/g, "").slice(0, 180);
     const storageKey = `${employee.id}/${randomUUID()}${extension}`;
     const mimeType = mimeTypeFor(extension);
     let documentId: string | undefined;
