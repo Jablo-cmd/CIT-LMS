@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 import { protectCookieMutations } from "./csrf.js";
+import { config } from "../config.js";
 
 function invoke(method: string, headers: Record<string, string>) {
   const req = { method, get: (name: string) => headers[name.toLowerCase()] } as unknown as Request;
@@ -17,7 +18,7 @@ describe("cookie mutation CSRF protection", () => {
   it("allows a cross-site request only when its Origin is the configured web origin", () => {
     const { next, res } = invoke("POST", {
       "sec-fetch-site": "cross-site",
-      origin: "http://localhost:3000"
+      origin: config.WEB_ORIGIN
     });
     expect(next).toHaveBeenCalledOnce();
     expect(res.status).not.toHaveBeenCalled();
