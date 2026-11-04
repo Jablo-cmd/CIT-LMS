@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { calculateWorkingLeaveDays } from "../services/leave-calculation.js";
+import { toDocumentView } from "../services/document-view.js";
 
 export const leaveRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -223,7 +224,7 @@ leaveRouter.get("/transactions", allStaff, async (req, res, next) => {
       include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } } },
       orderBy: { capturedAt: "desc" }, take: 500
     });
-    return res.json({ items });
+    return res.json({ items: items.map(item => ({ ...item, documents: "documents" in item ? item.documents.map(toDocumentView) : undefined })) });
   } catch (e) { return next(e); }
 });
 
@@ -243,7 +244,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
     if (days < 1) return res.status(400).json({ error: "The selected dates contain no scheduled working days" });
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
+    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: null } });
     if (!supportingDocument) return res.status(400).json({ error: "A supporting leave form belonging to this employee is required" });
     const policyCandidates = input.category === "UNPAID" ? [] : await prisma.leavePolicy.findMany({
       where: {
@@ -279,7 +280,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "CREATE", "LeaveTransaction", transaction.id, undefined, transaction);
-    return res.status(201).json({ transaction, calculatedWorkingDays: days });
+    return res.status(201).json({ transaction: { ...transaction, documents: transaction.documents.map(toDocumentView) }, calculatedWorkingDays: days });
   } catch (e) {
     if (e instanceof Error && e.message === "INSUFFICIENT_LEAVE_BALANCE") return res.status(409).json({ error: "Insufficient leave balance. Record an authorised opening balance or adjustment first." });
     return next(e);
