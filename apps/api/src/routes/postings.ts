@@ -41,7 +41,7 @@ postingsRouter.get("/history/:employeeId", allStaff, async (req, res, next) => {
   try {
     const items = await prisma.employmentHistory.findMany({
       where: { employeeId: String(req.params.employeeId) },
-      include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true,  createdAt:true } }, recordedBy: { select: { fullName: true } } },
+      include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } }, recordedBy: { select: { fullName: true } } },
       orderBy: [{ effectiveDate: "desc" }, { recordedAt: "desc" }]
     });
     return res.json({ items: items.map(item => ({ ...item, supportingDocument: item.supportingDocument ? toDocumentView(item.supportingDocument) : null })) });
@@ -84,7 +84,7 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
           managerName: input.managerName, notes: input.notes,
           supportingDocumentId: document.id, recordedById: req.auth!.userId
         },
-        include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true,  createdAt:true } } }
+        include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } } }
       });
       await tx.employee.update({ where: { id: employee.id }, data: {
         ...(input.newPosition ? { currentPosition: input.newPosition } : {}),
