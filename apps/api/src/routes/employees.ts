@@ -75,7 +75,7 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
       where: { id: String(req.params.id) },
       include: {
         department: true, currentPosting: true, workingSchedule: true, nextOfKin: true,
-        history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true,  createdAt:true } }, recordedBy: { select: { fullName:true } } } },
+        history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } }, recordedBy: { select: { fullName:true } } } },
         documents: { where: { disciplinaryRecord: null }, select: { id:true, title:true, category:true,  mimeType:true, sizeBytes:true,  createdAt:true, uploadedBy:{select:{fullName:true}} }, orderBy: { createdAt: "desc" } }
       }
     });
