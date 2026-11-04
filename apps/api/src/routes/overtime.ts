@@ -43,16 +43,28 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
       const docs = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id } });
       if (docs !== input.documentIds.length) return res.status(400).json({ error: "One or more supporting documents do not belong to this employee" });
     }
-    const entry = await prisma.overtimeEntry.create({
-      data: {
-        employeeId: employee.id, postingSiteId: input.postingSiteId, workDate: input.workDate,
-        startTime: input.startTime, finishTime: input.finishTime, totalHours,
-        confirmedBy: input.confirmedBy, notes: input.notes, capturedById: req.auth!.userId,
-        
-      },
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, documents: true }
+    const entry = await prisma.$transaction(async tx => {
+      const created = await tx.overtimeEntry.create({
+        data: {
+          employeeId: employee.id, postingSiteId: input.postingSiteId, workDate: input.workDate,
+          startTime: input.startTime, finishTime: input.finishTime, totalHours,
+          confirmedBy: input.confirmedBy, notes: input.notes, capturedById: req.auth!.userId
+        },
+        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true }
+      });
+      if (input.documentIds?.length) {
+        const linked = await tx.employeeDocument.updateMany({
+          where: { id: { in: input.documentIds }, employeeId: employee.id, overtimeEntryId: null },
+          data: { overtimeEntryId: created.id }
+        });
+        if (linked.count !== input.documentIds.length) throw new Error("A supporting document was linked concurrently; retry with the current document list");
+      }
+      return tx.overtimeEntry.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, documents: { select: { id: true, title: true, category: true, mimeType: true, createdAt: true } } }
+      });
     });
     await writeAudit(req, "CREATE", "OvertimeEntry", entry.id, undefined, entry);
-    return res.status(201).json({ entry });
+    return res.status(201).json({ entry: { ...entry, documents: entry.documents.map(toDocumentView) } });
   } catch (e) { return next(e); }
 });
