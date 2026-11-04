@@ -159,7 +159,7 @@ leaveRouter.post("/carryover/apply", hrOnly, async (req, res, next) => {
         const transaction = await prisma.$transaction(async tx => tx.leaveTransaction.create({
           data: {
             employeeId:employee.id, policyId:policy.id, category:policy.category,
-            type:"ADJUSTMENT", days:adjustmentDays, balanceBefore:balance,
+            transactionType:"ADJUSTMENT", days:adjustmentDays,
             balanceAfter:limit, notes:`Year-end ${input.year} carry-over cap applied (maximum ${limit} days)`,
             referenceNumber, capturedById:req.auth!.userId
           }
@@ -183,7 +183,7 @@ leaveRouter.get("/balances", allStaff, async (req, res, next) => {
     const ids = employees.map(e=>e.id);
     const transactions = await prisma.leaveTransaction.findMany({
       where: { employeeId: { in: ids } },
-      select: { employeeId:true, category:true, type:true, days:true }
+      select: { employeeId:true, category:true, transactionType:true, days:true }
     });
     const balances = new Map<string,Record<string,number>>();
     for(const transaction of transactions){
@@ -260,15 +260,22 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: input.employeeId, category: input.category }, orderBy: { capturedAt: "asc" } });
       const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       if (input.category !== "UNPAID" && balance < days) throw new Error("INSUFFICIENT_LEAVE_BALANCE");
-      return tx.leaveTransaction.create({
+      const created = await tx.leaveTransaction.create({
         data: {
           employeeId: input.employeeId, policyId: policy?.id, category: input.category,
           transactionType: "DEDUCTION", firstLeaveDate: input.firstLeaveDate, lastLeaveDate: input.lastLeaveDate,
-          paperFormDate: input.paperFormDate, days, balanceBefore: input.category === "UNPAID" ? null : balance,
+          paperFormDate: input.paperFormDate, days,
           balanceAfter: input.category === "UNPAID" ? null : balance - days, notes: input.reason, referenceNumber: input.referenceNumber,
-          capturedById: req.auth!.userId, 
-        },
-        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, originalName:true } } }
+          capturedById: req.auth!.userId
+        }
+      });
+      await tx.employeeDocument.update({
+        where: { id: supportingDocument.id },
+        data: { leaveTransactionId: created.id }
+      });
+      return tx.leaveTransaction.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, storagePath:true, mimeType:true, createdAt:true } } }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "CREATE", "LeaveTransaction", transaction.id, undefined, transaction);
@@ -316,7 +323,7 @@ leaveRouter.post("/transactions/:id/reverse", hrOnly, async (req, res, next) => 
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: original.employeeId, category: original.category } });
       const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       return tx.leaveTransaction.create({
-        data: { employeeId: original.employeeId, category: original.category, transactionType: "REVERSAL", days: reversalDays, balanceAfter: balance + reversalDays, notes: input.reason, referenceNumber, capturedById: req.auth!.userId }
+        data: { employeeId: original.employeeId, category: original.category, transactionType: "REVERSAL", reversesId: original.id, days: reversalDays, balanceAfter: balance + reversalDays, notes: input.reason, referenceNumber, capturedById: req.auth!.userId }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "REVERSE_LEAVE_TRANSACTION", "LeaveTransaction", reversal.id, original, reversal);
