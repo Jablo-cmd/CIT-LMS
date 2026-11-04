@@ -31,17 +31,17 @@ The API signs users in through Supabase Auth, stores the access and refresh toke
 
 The existing production Supabase project is authoritative. Its schema predates the repository's original Prisma migration and has different UUID, column, and relation definitions. The original migration is not a production migration and must not be deployed to the existing project.
 
-The repository's Prisma mapping work is in progress. Do not use Prisma migrations, `db push`, or the seed script against production until every model, column, enum, and relationship has been reconciled and a reviewed baseline plan has been approved. No production schema/data changes are part of this branch.
+The branch now maps Prisma models and API queries to the read-only production catalog snapshot. The original incompatible migration is archived outside the active migrations path. CI uses `prisma db push` only against a disposable PostgreSQL service; this is not a production migration. The seed script requires explicit `CIT_LMS_ALLOW_SEED=true` and refuses production/Vercel execution. Do not run `prisma migrate deploy`, `prisma migrate dev`, `prisma db push`, or seed against production. No production schema/data changes are part of this branch.
 
 ## Storage
 
-The existing bucket must remain private. The API verifies bucket privacy at startup, authorizes document access, and uses server-generated signed URLs/proxying. Do not make the bucket public or grant browser clients broad access to employee documents.
+The existing `cit-lms-documents` bucket is private. The API uses server-side Storage operations and must authorize every upload/download. Existing Storage policies reference the different id `employee-documents`; do not assume those policies protect the actual bucket. The service-role key bypasses Storage RLS and must remain server-only. The API derives a download filename from the stored title and MIME type because the existing table has no original-filename or description columns.
 
 ## Deployment checklist
 
 1. Configure server-only environment variables in Vercel without disclosing their values.
 2. Confirm the runtime Postgres pooler DSN.
-3. Complete Prisma schema and route reconciliation.
+3. Confirm CI schema validation, route typecheck, tests, build, and disposable database smoke test.
 4. Run tests against an isolated test database and test Auth users.
-5. Verify CORS, CSRF, cookies, roles, RLS, and Storage access.
+5. Review the findings in `docs/PRODUCTION_SECURITY_REVIEW.md`; verify CORS, CSRF, cookies, roles, RLS, and Storage access.
 6. Deploy a preview and verify end-to-end before considering a production release.
