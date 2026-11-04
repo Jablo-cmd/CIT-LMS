@@ -18,7 +18,7 @@ describe("document compatibility view", () => {
 
   it("sanitizes path separators and control characters in download filenames", () => {
     const result = toDocumentView({
-      title: "../private/record",
+      title: "../private/" + String.fromCharCode(0) + "record",
       mimeType: "image/png",
       createdAt: new Date("2026-10-31T12:30:00.000Z")
     });
