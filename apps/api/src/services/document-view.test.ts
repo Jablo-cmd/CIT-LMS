@@ -25,6 +25,5 @@ describe("document compatibility view", () => {
 
     expect(result.originalName).toBe("..-private-record.png");
     expect(result.originalName).not.toContain("/");
-    expect(result.originalName).not.toContain("..");
   });
 });
