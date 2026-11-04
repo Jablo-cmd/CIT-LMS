@@ -18,7 +18,7 @@ overtimeRouter.get("/", allStaff, async (req, res, next) => {
     const to = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
     const items = await prisma.overtimeEntry.findMany({
       where: { ...(employeeId ? { employeeId } : {}), ...(postingSiteId ? { postingSiteId } : {}), ...(from || to ? { workDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) },
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, capturedBy: { select: { fullName: true } }, documents: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } } },
+      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, capturedBy: { select: { fullName: true } }, documents: { where: req.auth!.role === "ADMIN_PERSONNEL" ? { category: { not: "IDENTITY_PERSONAL" } } : {}, select: { id:true, title:true, category:true, mimeType:true, createdAt:true } } },
       orderBy: { workDate: "desc" }, take: 500
     });
     return res.json({ items: items.map(item => ({ ...item, documents: item.documents.map(toDocumentView) })) });
@@ -40,7 +40,7 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     if (input.documentIds?.length) {
-      const docs = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
+      const docs = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id, category: { not: "IDENTITY_PERSONAL" }, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
       if (docs !== input.documentIds.length) return res.status(400).json({ error: "One or more supporting documents do not belong to this employee" });
     }
     const entry = await prisma.$transaction(async tx => {
