@@ -28,7 +28,7 @@ overtimeRouter.get("/", allStaff, async (req, res, next) => {
 overtimeRouter.post("/", allStaff, async (req, res, next) => {
   try {
     const input = z.object({
-      employeeId: z.string().min(1), postingSiteId: z.string().optional(),
+      employeeId: z.string().uuid(), postingSiteId: z.string().uuid().optional(),
       workDate: z.coerce.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
       finishTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
       confirmedBy: z.string().trim().min(2).max(120), notes: z.string().max(2000).optional(),
