@@ -34,15 +34,14 @@ The API requires a real Supabase Postgres connection string in `DATABASE_URL`, `
 
 The existing production project is authoritative. It contains `profiles` linked to `auth.users`, HR tables with UUID primary/foreign keys, and the existing private documents bucket. The repository's original Prisma migration creates a different schema and must not be deployed to that project.
 
-The Prisma `User` model has been started as a mapping to `public.profiles`, and identifiers/table names have begun to be aligned. This is **not yet a complete Prisma schema reconciliation**. Several other models still have field/relationship mismatches (notably document foreign keys, leave transaction fields, working schedules, public holidays, and policy fields). Runtime CRUD must not be considered production-ready until all model mappings and route queries are reconciled and tested against a disposable schema clone or isolated test project.
+The branch now maps the Prisma models, scalar fields, enums, UUIDs, indexes, and relations to the read-only production catalog snapshot. API routes have been updated for the actual document foreign keys, leave transaction fields, working schedule notes, public holiday composite key, and required leave-policy creator. This is a code/schema reconciliation, not proof of live CRUD correctness; it still needs CI validation and integration tests against the disposable CI database.
 
-No production migration history baseline exists. Do not run `prisma migrate deploy`, `prisma migrate dev`, `prisma db push`, or the seed script against production. Establish and review a safe baseline separately after the schema mapping is complete.
+No production migration history baseline exists. Do not run `prisma migrate deploy`, `prisma migrate dev`, `prisma db push`, or the seed script against production. CI uses `prisma db push` only against its disposable PostgreSQL service. The seed script now requires explicit `CIT_LMS_ALLOW_SEED=true` and refuses production/Vercel execution. Establish and review a safe baseline separately after the schema mapping is complete.
 
 ## Delivery gates
 
-1. Complete Prisma model/column/enum/relation mapping from a read-only schema snapshot.
-2. Update API queries and document metadata handling to match actual columns.
-3. Add unit/integration tests using a disposable test database and isolated Auth test users.
+1. Complete CI validation of the reconciled Prisma schema and API routes.
+2. Add deeper integration tests against the disposable schema and isolated Auth test users.
 4. Run Prisma validation/generation, API/web typechecks, tests, and production build.
 5. Review security (RLS, Auth, cookies, CORS/CSRF, private Storage, key exposure).
 6. Configure required Vercel environment variables without exposing secret values.
@@ -56,12 +55,17 @@ No production migration history baseline exists. Do not run `prisma migrate depl
 - Updated protected user creation/password reset to use Supabase Auth Admin APIs and compensate by deleting the new identity if profile/audit creation fails.
 - Retired the local password-based owner bootstrap and replaced the old destructive smoke script with a read-only API health check.
 - Updated Prisma config so code generation in the build/typecheck lifecycle can use a non-routable placeholder DSN when no real DB URL is present; database CLI operations still require an explicit `DATABASE_URL`.
-- Began mapping Prisma `User` to `profiles`, UUID identifiers, snake_case scalar fields, table names, and enum names.
+- Reconciled all Prisma models to the production catalog snapshot, including UUIDs, native dates/timestamps, enum mappings, numeric precision, real table/column names, production index names, and document/leave foreign-key relations.
+- Updated employee, document, leave, overtime, disciplinary, recommendation, history, calendar, and reporting routes to use existing production columns.
+- Added a compatibility view for document filenames: the live schema stores title and MIME type, not original filename or description; the API derives a safe download filename and returns a null description rather than claiming absent metadata exists.
+- Archived the incompatible initial migration outside the active Prisma migrations path; CI now builds a disposable schema from the reconciled Prisma models and does not run the old migration or seed data.
+- Added an explicit opt-in guard to the seed script and tests for document metadata compatibility.
+- Added a read-only production security review at `docs/PRODUCTION_SECURITY_REVIEW.md`.
 
 ## Not yet done / not claimed
 
-- Full Prisma schema reconciliation and all API route updates.
-- Successful local or CI typecheck/test/build (the connector used to edit GitHub files does not execute repository commands).
+- Successful latest CI validation/typecheck/tests/build and database smoke test (awaiting the current workflow result).
+- End-to-end Auth and document-storage integration tests against an isolated Supabase test project.
 - Preview deployment or live Auth integration test.
-- Production environment-variable completion.
+- Production environment-variable completion: `DATABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` remain unavailable in the existing Vercel project.
 - Production migration or deployment.
