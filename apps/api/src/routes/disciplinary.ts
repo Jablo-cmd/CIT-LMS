@@ -40,7 +40,7 @@ disciplinaryRouter.post("/", async (req, res, next) => {
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId }, select: { id: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     if (input.documentIds?.length) {
-      const count = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id, disciplinaryRecordId: null } });
+      const count = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
       if (count !== input.documentIds.length) return res.status(400).json({ error: "Every supporting document must belong to this employee and be unassigned" });
     }
     const record = await prisma.$transaction(async tx => {
