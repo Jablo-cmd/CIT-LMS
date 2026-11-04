@@ -40,7 +40,7 @@ documentsRouter.get("/", allStaff, async (req, res, next) => {
       where: {
         ...(employeeId ? { employeeId } : {}),
         ...(category ? { category: category as never } : {}),
-        ...(isAdmin ? { category: { not: "IDENTITY_PERSONAL" }, disciplinaryRecord: { is: null } } : {})
+        ...(isAdmin ? { AND: [{ category: { not: "IDENTITY_PERSONAL" } }, { disciplinaryRecord: { is: null } }] } : {})
       },
       select: { id:true, employeeId:true, title:true, category:true,  mimeType:true, sizeBytes:true,  createdAt:true, employee:{select:{employeeNumber:true,firstName:true,lastName:true}}, uploadedBy:{select:{fullName:true}} },
       orderBy: { createdAt:"desc" }, take:500
