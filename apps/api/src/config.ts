@@ -11,7 +11,7 @@ export const configSchema = z.object({
   STORAGE_DRIVER: z.enum(["local", "supabase"]).default("local"),
   STORAGE_ROOT: z.string().default("./storage"),
   SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_ANON_KEY: z.string().min(1).optional().default(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+  SUPABASE_ANON_KEY: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default("cit-lms-documents"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(() => process.env.VERCEL === "1" ? 4_194_304 : 10_485_760)
@@ -24,4 +24,4 @@ export const configSchema = z.object({
   }
   if (process.env.VERCEL === "1" && value.MAX_UPLOAD_BYTES > 4_194_304) ctx.addIssue({ code: "custom", path: ["MAX_UPLOAD_BYTES"], message: "Vercel uploads must be limited to 4 MiB" });
 });
-export const config = configSchema.parse(process.env);
+export const config = configSchema.parse({ ...process.env, SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY });
