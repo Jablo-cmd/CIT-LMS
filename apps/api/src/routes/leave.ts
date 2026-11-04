@@ -244,7 +244,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
     if (days < 1) return res.status(400).json({ error: "The selected dates contain no scheduled working days" });
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: null } });
+    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
     if (!supportingDocument) return res.status(400).json({ error: "A supporting leave form belonging to this employee is required" });
     const policyCandidates = input.category === "UNPAID" ? [] : await prisma.leavePolicy.findMany({
       where: {
@@ -276,7 +276,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       });
       return tx.leaveTransaction.findUniqueOrThrow({
         where: { id: created.id },
-        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, mimeType:true, storagePath:true, mimeType:true, createdAt:true } } }
+        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, storagePath:true, mimeType:true, createdAt:true } } }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "CREATE", "LeaveTransaction", transaction.id, undefined, transaction);
