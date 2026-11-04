@@ -1,19 +1,21 @@
 import { app } from "./app.js";
-import { config } from "./config.js";
+import { config, isPreviewSafeMode } from "./config.js";
 import { prisma } from "./db.js";
 import { verifyPrivateBucket } from "./services/document-storage.js";
 
 const server = await (async () => {
-  await verifyPrivateBucket();
+  if (!isPreviewSafeMode) await verifyPrivateBucket();
   return app.listen(config.PORT, () => {
-    console.log(`CIT-LMS API listening on port ${config.PORT}`);
+    console.log(isPreviewSafeMode
+      ? `CIT-LMS API running in restricted Preview mode on port ${config.PORT}`
+      : `CIT-LMS API listening on port ${config.PORT}`);
   });
 })();
 
 async function shutdown(signal: string) {
   console.log(`Received ${signal}; shutting down`);
   server.close(async () => {
-    await prisma.$disconnect();
+    if (!isPreviewSafeMode) await prisma.$disconnect();
     process.exit(0);
   });
 }
