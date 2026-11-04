@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { toDocumentView } from "../services/document-view.js";
 
 export const recommendationsRouter = Router();
 recommendationsRouter.use(allowRoles("COMPANY_OWNER", "HR_MANAGER"));
@@ -12,10 +13,10 @@ recommendationsRouter.get("/", async (req, res, next) => {
     const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
     const items = await prisma.recommendation.findMany({
       where: employeeId ? { employeeId } : {},
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } }, documents: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } },
+      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } }, documents: { select: { id:true, title:true, category:true,  createdAt:true } } },
       orderBy: { date: "desc" }, take: 300
     });
-    return res.json({ items });
+    return res.json({ items: items.map(item => ({ ...item, documents: item.documents.map(toDocumentView) })) });
   } catch (e) { return next(e); }
 });
 
@@ -35,9 +36,9 @@ recommendationsRouter.post("/", async (req, res, next) => {
     }
     const record = await prisma.recommendation.create({
       data: { ...input, capturedById: req.auth!.userId, documents: input.documentIds?.length ? { connect: input.documentIds.map(id => ({ id })) } : undefined },
-      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } }
+      include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true,  createdAt:true } } }
     });
-    await writeAudit(req, "CREATE", "Recommendation", record.id, undefined, record);
-    return res.status(201).json({ record });
+    await writeAudit(req, "CREATE", "Recommendation", record.id, undefined, recordView);
+    return res.status(201).json({ record: recordView });
   } catch (e) { return next(e); }
 });
