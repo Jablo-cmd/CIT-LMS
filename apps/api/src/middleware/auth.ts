@@ -1,24 +1,32 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { config } from "../config.js";
-import { prisma } from "../db.js";
 import type { UserRole } from "@prisma/client";
+import { prisma } from "../db.js";
+import { clearAuthCookies, getSupabaseUser, refreshSupabaseSession, setAuthCookies } from "../services/supabase-auth.js";
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const token = req.cookies?.cit_session as string | undefined;
-    if (!token) return res.status(401).json({ error: "Authentication required" });
-    const payload = jwt.verify(token, config.JWT_ACCESS_SECRET) as jwt.JwtPayload;
-    if (typeof payload.sub !== "string") return res.status(401).json({ error: "Invalid session" });
-    const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, email: true, role: true, isActive: true, tokenVersion: true } });
-    if (!user || !user.isActive || payload.tokenVersion !== user.tokenVersion) return res.status(401).json({ error: "Account unavailable or session expired" });
-    req.auth = { userId: user.id, email: user.email, role: user.role };
+    let accessToken = req.cookies?.cit_access_token as string | undefined;
+    const refreshToken = req.cookies?.cit_refresh_token as string | undefined;
+    if (!accessToken && !refreshToken) return res.status(401).json({ error: "Authentication required" });
+    let authUser;
+    if (accessToken) {
+      try { authUser = await getSupabaseUser(accessToken); }
+      catch (error) {
+        if (!refreshToken || (error as { status?: number }).status !== 401) throw error;
+      }
+    }
+    if (!authUser && refreshToken) {
+      const session = await refreshSupabaseSession(refreshToken);
+      setAuthCookies(res, session);
+      authUser = session.user;
+    }
+    if (!authUser?.id) { clearAuthCookies(res); return res.status(401).json({ error: "Invalid or expired session" }); }
+    const profile = await prisma.user.findUnique({ where: { id: authUser.id }, select: { id: true, email: true, role: true, isActive: true } });
+    if (!profile || !profile.isActive) { clearAuthCookies(res); return res.status(403).json({ error: "Account is not authorised for CIT-LMS" }); }
+    req.auth = { userId: profile.id, email: profile.email, role: profile.role };
     return next();
-  } catch {
-    return res.status(401).json({ error: "Invalid or expired session" });
-  }
+  } catch { return res.status(401).json({ error: "Unable to validate the Supabase session" }); }
 }
-
 export function allowRoles(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.auth) return res.status(401).json({ error: "Authentication required" });
@@ -26,6 +34,5 @@ export function allowRoles(...roles: UserRole[]) {
     return next();
   };
 }
-
 export const isManagement = allowRoles("COMPANY_OWNER", "HR_MANAGER");
 export const isOwner = allowRoles("COMPANY_OWNER");
