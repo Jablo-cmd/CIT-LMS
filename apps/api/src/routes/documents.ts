@@ -40,7 +40,7 @@ documentsRouter.get("/", allStaff, async (req, res, next) => {
       where: {
         ...(employeeId ? { employeeId } : {}),
         ...(category ? { category: category as never } : {}),
-        ...(isAdmin ? { category: { not: "IDENTITY_PERSONAL" }, disciplinaryRecord: null } : {})
+        ...(isAdmin ? { category: { not: "IDENTITY_PERSONAL" }, disciplinaryRecord: { is: null } } : {})
       },
       select: { id:true, employeeId:true, title:true, category:true,  mimeType:true, sizeBytes:true,  createdAt:true, employee:{select:{employeeNumber:true,firstName:true,lastName:true}}, uploadedBy:{select:{fullName:true}} },
       orderBy: { createdAt:"desc" }, take:500
@@ -55,7 +55,7 @@ documentsRouter.get("/employee/:employeeId", allStaff, async (req, res, next) =>
     const items = await prisma.employeeDocument.findMany({
       where: {
         employeeId: String(req.params.employeeId),
-        ...(isHr ? {} : { category: { not: "IDENTITY_PERSONAL" }, disciplinaryRecord: null })
+        ...(isHr ? {} : { category: { not: "IDENTITY_PERSONAL" }, disciplinaryRecord: { is: null } })
       },
       select: { id: true, title: true, category: true,  mimeType: true, sizeBytes: true,  createdAt: true, uploadedBy: { select: { fullName: true } } },
       orderBy: { createdAt: "desc" }
