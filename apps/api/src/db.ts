@@ -4,7 +4,8 @@ import { PrismaClient } from "@prisma/client";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL must be configured before starting the API");
-const adapter = new PrismaPg({ connectionString });
+const poolMax = process.env.VERCEL === "1" ? 1 : Math.max(1, Number(process.env.DB_POOL_MAX) || 10);
+const adapter = new PrismaPg({ connectionString, max: poolMax, connectionTimeoutMillis: 5_000, idleTimeoutMillis: 10_000 });
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   adapter,
