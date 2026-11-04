@@ -32,7 +32,7 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
       workDate: z.coerce.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
       finishTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
       confirmedBy: z.string().trim().min(2).max(120), notes: z.string().max(2000).optional(),
-      documentIds: z.array(z.string()).max(10).optional()
+      documentIds: z.array(z.string().uuid()).max(10).optional()
     }).parse(req.body);
     const day = input.workDate.getUTCDay();
     if (day !== 0 && day !== 6) return res.status(400).json({ error: "Weekend overtime entries must be dated on a Saturday or Sunday" });
@@ -54,7 +54,7 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
       });
       if (input.documentIds?.length) {
         const linked = await tx.employeeDocument.updateMany({
-          where: { id: { in: input.documentIds }, employeeId: employee.id, overtimeEntryId: null },
+          where: { id: { in: input.documentIds }, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } },
           data: { overtimeEntryId: created.id }
         });
         if (linked.count !== input.documentIds.length) throw new Error("A supporting document was linked concurrently; retry with the current document list");
