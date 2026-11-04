@@ -84,7 +84,7 @@ model User {
 }
 
 model Employee {
-  id                 String @id @default(cuid())
+  id String @id @default(uuid()) @db.Uuid
   employeeNumber     String @unique
   firstName          String
   lastName           String
@@ -100,14 +100,14 @@ model Employee {
   email              String?
   employmentType     EmploymentType
   employmentStatus   EmploymentStatus @default(ACTIVE)
-  originalHireDate   DateTime
-  contractStartDate  DateTime?
-  contractEndDate    DateTime?
-  departmentId       String?
+  originalHireDate   DateTime @db.Date
+  contractStartDate  DateTime? @db.Date
+  contractEndDate    DateTime? @db.Date
+  departmentId       String? @db.Uuid
   currentPosition    String?
   deployedRole       String?
-  currentPostingId   String?
-  workingScheduleId  String?
+  currentPostingId   String? @db.Uuid
+  workingScheduleId  String? @db.Uuid
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   department         Department? @relation(fields: [departmentId], references: [id])
@@ -127,7 +127,7 @@ model Employee {
 }
 
 model Department {
-  id        String @id @default(cuid())
+  id String @id @default(uuid()) @db.Uuid
   name      String @unique
   isActive  Boolean @default(true)
   employees Employee[]
@@ -135,7 +135,7 @@ model Department {
 }
 
 model PostingSite {
-  id             String @id @default(cuid())
+  id String @id @default(uuid()) @db.Uuid
   code           String @unique
   name           String
   address        String?
@@ -151,21 +151,21 @@ model PostingSite {
 }
 
 model EmploymentHistory {
-  id                   String @id @default(cuid())
-  employeeId           String
+  id String @id @default(uuid()) @db.Uuid
+  employeeId           String @db.Uuid
   previousPosition     String?
   newPosition          String?
   previousDeployedRole String?
   newDeployedRole      String?
-  previousPostingId    String?
-  newPostingId         String?
-  effectiveDate        DateTime
+  previousPostingId    String? @db.Uuid
+  newPostingId         String? @db.Uuid
+  effectiveDate        DateTime @db.Date
   recordedAt           DateTime @default(now())
   reason               String
   managerName          String?
   notes                String?
-  supportingDocumentId String? @unique
-  recordedById         String
+  supportingDocumentId String? @db.Uuid @unique
+  recordedById         String @db.Uuid
   employee             Employee @relation(fields: [employeeId], references: [id])
   previousPosting      PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
   newPosting           PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
@@ -175,8 +175,8 @@ model EmploymentHistory {
 }
 
 model NextOfKin {
-  id           String @id @default(cuid())
-  employeeId   String
+  id String @id @default(uuid()) @db.Uuid
+  employeeId   String @db.Uuid
   fullName     String
   relationship String
   phone        String
@@ -187,8 +187,8 @@ model NextOfKin {
 }
 
 model EmployeeDocument {
-  id              String @id @default(cuid())
-  employeeId      String
+  id String @id @default(uuid()) @db.Uuid
+  employeeId      String @db.Uuid
   title           String
   category        DocumentCategory
   originalName    String
@@ -197,7 +197,7 @@ model EmployeeDocument {
   sizeBytes       Int
   description     String?
   uploadedAt      DateTime @default(now())
-  uploadedById    String
+  uploadedById    String @db.Uuid
   employee        Employee @relation(fields: [employeeId], references: [id])
   uploadedBy      User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
   historyEvent    EmploymentHistory? @relation("HistoryDocument")
@@ -208,7 +208,7 @@ model EmployeeDocument {
 }
 
 model WorkingSchedule {
-  id          String @id @default(cuid())
+  id String @id @default(uuid()) @db.Uuid
   name        String @unique
   workingDays Int[]
   description String?
@@ -218,8 +218,8 @@ model WorkingSchedule {
 }
 
 model PublicHoliday {
-  id          String @id @default(cuid())
-  date        DateTime @unique
+  id String @id @default(uuid()) @db.Uuid
+  date        DateTime @unique @db.Date
   name        String
   countryCode String @default("ZA")
   createdAt   DateTime @default(now())
@@ -227,41 +227,41 @@ model PublicHoliday {
 }
 
 model LeavePolicy {
-  id              String @id @default(cuid())
+  id String @id @default(uuid()) @db.Uuid
   category        LeaveCategory
   name            String
   entitlementDays Decimal? @db.Decimal(7,2)
   accrualPerMonth Decimal? @db.Decimal(7,3)
   employmentType  EmploymentType?
-  effectiveFrom   DateTime
-  effectiveTo     DateTime?
+  effectiveFrom   DateTime @db.Date
+  effectiveTo     DateTime? @db.Date
   carryOverLimit  Decimal? @db.Decimal(7,2)
   eligibility     String?
   notes           String?
   isActive        Boolean @default(true)
   createdAt       DateTime @default(now())
-  createdById     String?
+  createdById     String? @db.Uuid
   createdBy       User? @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id])
   transactions    LeaveTransaction[]
   @@index([category, effectiveFrom, effectiveTo])
 }
 
 model LeaveTransaction {
-  id                 String @id @default(cuid())
-  employeeId         String
-  policyId           String?
+  id String @id @default(uuid()) @db.Uuid
+  employeeId         String @db.Uuid
+  policyId           String? @db.Uuid
   category           LeaveCategory
   type               LeaveTransactionType @default(DEDUCTION)
-  firstLeaveDate     DateTime?
-  lastLeaveDate      DateTime?
-  formSubmissionDate DateTime?
+  firstLeaveDate     DateTime? @db.Date
+  lastLeaveDate      DateTime? @db.Date
+  formSubmissionDate DateTime? @db.Date
   capturedAt         DateTime @default(now())
   days               Decimal @db.Decimal(7,2)
   balanceBefore      Decimal? @db.Decimal(9,2)
   balanceAfter       Decimal? @db.Decimal(9,2)
   reason             String?
   referenceNumber    String?
-  capturedById       String
+  capturedById       String @db.Uuid
   employee           Employee @relation(fields: [employeeId], references: [id])
   policy             LeavePolicy? @relation(fields: [policyId], references: [id])
   capturedBy         User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
@@ -271,15 +271,15 @@ model LeaveTransaction {
 }
 
 model OvertimeEntry {
-  id             String @id @default(cuid())
-  employeeId     String
-  postingSiteId  String?
-  workDate       DateTime
+  id String @id @default(uuid()) @db.Uuid
+  employeeId     String @db.Uuid
+  postingSiteId  String? @db.Uuid
+  workDate       DateTime @db.Date
   startTime      String
   finishTime     String
   totalHours     Decimal @db.Decimal(6,2)
   confirmedBy    String
-  capturedById   String
+  capturedById   String @db.Uuid
   notes          String?
   createdAt      DateTime @default(now())
   employee       Employee @relation(fields: [employeeId], references: [id])
@@ -290,15 +290,15 @@ model OvertimeEntry {
 }
 
 model DisciplinaryRecord {
-  id            String @id @default(cuid())
-  employeeId    String
-  hearingDate   DateTime
+  id String @id @default(uuid()) @db.Uuid
+  employeeId    String @db.Uuid
+  hearingDate   DateTime @db.Date
   matter        String
   finding       String?
   outcome       DisciplinaryOutcome @default(PENDING)
   sanction      String?
   notes         String?
-  capturedById  String
+  capturedById  String @db.Uuid
   createdAt     DateTime @default(now())
   employee      Employee @relation(fields: [employeeId], references: [id])
   capturedBy    User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id])
@@ -307,13 +307,13 @@ model DisciplinaryRecord {
 }
 
 model Recommendation {
-  id          String @id @default(cuid())
-  employeeId  String
-  date        DateTime
+  id String @id @default(uuid()) @db.Uuid
+  employeeId  String @db.Uuid
+  date        DateTime @db.Date
   type        RecommendationType
   description String
   submittedBy String
-  capturedById String
+  capturedById String @db.Uuid
   comments    String?
   createdAt   DateTime @default(now())
   employee    Employee @relation(fields: [employeeId], references: [id])
@@ -323,11 +323,11 @@ model Recommendation {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?
+  id String @id @default(uuid()) @db.Uuid
+  userId      String? @db.Uuid
   action      String
   entityType  String
-  entityId    String?
+  entityId    String? @db.Uuid
   beforeData  Json?
   afterData   Json?
   ipAddress   String?
