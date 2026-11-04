@@ -79,7 +79,7 @@ export async function createSupabaseUser(email: string, password: string, fullNa
 export async function updateSupabaseUserPassword(userId: string, password: string) {
   const response = await fetch(`${config.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
     method: "PUT",
-    headers: { apikey: config.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+    headers: adminHeaders(),
     body: JSON.stringify({ password }),
     signal: AbortSignal.timeout(10_000)
   });
