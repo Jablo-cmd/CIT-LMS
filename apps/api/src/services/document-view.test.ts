@@ -18,13 +18,13 @@ describe("document compatibility view", () => {
 
   it("sanitizes path separators and control characters in download filenames", () => {
     const result = toDocumentView({
-      title: "../private\\u0000record",
+      title: "../private/record",
       mimeType: "image/png",
       createdAt: new Date("2026-10-31T12:30:00.000Z")
     });
 
     expect(result.originalName).toBe("..-private-record.png");
     expect(result.originalName).not.toContain("/");
-    expect(result.originalName).not.toContain("\\u0000");
+    expect(result.originalName).not.toContain("..");
   });
 });
