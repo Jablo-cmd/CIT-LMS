@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { config } from "../config.js";
 import { isOwner } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { createSupabaseUser, deleteSupabaseUser, updateSupabaseUserPassword } from "../services/supabase-auth.js";
@@ -18,6 +17,7 @@ usersRouter.get("/", async (_req, res, next) => {
 
 usersRouter.post("/", async (req, res, next) => {
   let createdAuthUserId: string | undefined;
+  let createdProfileId: string | undefined;
   try {
     const input = z.object({
       email: z.string().email().max(254),
@@ -32,9 +32,11 @@ usersRouter.post("/", async (req, res, next) => {
       data: { id: authUser.id, email, fullName: input.fullName, role: input.role },
       select: { id: true, email: true, fullName: true, role: true, isActive: true, createdAt: true }
     });
+    createdProfileId = user.id;
     await writeAudit(req, "CREATE", "User", user.id, undefined, user);
     return res.status(201).json({ user });
   } catch (e) {
+    if (createdProfileId) await prisma.user.delete({ where: { id: createdProfileId } }).catch(() => undefined);
     if (createdAuthUserId) await deleteSupabaseUser(createdAuthUserId).catch(() => undefined);
     return next(e);
   }
