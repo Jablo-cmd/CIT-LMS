@@ -32,7 +32,7 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
       workDate: z.coerce.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
       finishTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
       confirmedBy: z.string().trim().min(2).max(120), notes: z.string().max(2000).optional(),
-      documentIds: z.array(z.string().uuid()).max(10).optional()
+      documentIds: z.array(z.string().uuid()).max(10).refine(ids => new Set(ids).size === ids.length, "Document IDs must be unique").optional()
     }).parse(req.body);
     const day = input.workDate.getUTCDay();
     if (day !== 0 && day !== 6) return res.status(400).json({ error: "Weekend overtime entries must be dated on a Saturday or Sunday" });
@@ -40,7 +40,7 @@ overtimeRouter.post("/", allStaff, async (req, res, next) => {
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     if (input.documentIds?.length) {
-      const docs = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id } });
+      const docs = await prisma.employeeDocument.count({ where: { id: { in: input.documentIds }, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
       if (docs !== input.documentIds.length) return res.status(400).json({ error: "One or more supporting documents do not belong to this employee" });
     }
     const entry = await prisma.$transaction(async tx => {
