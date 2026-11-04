@@ -25,7 +25,7 @@ calendarRouter.post("/schedules", hrOnly, async (req, res, next) => {
 
 calendarRouter.post("/employees/:employeeId/schedule", hrOnly, async (req, res, next) => {
   try {
-    const input = z.object({ workingScheduleId: z.string().min(1) }).parse(req.body);
+    const input = z.object({ workingScheduleId: z.string().uuid() }).parse(req.body);
     const schedule = await prisma.workingSchedule.findFirst({ where: { id: input.workingScheduleId } });
     if (!schedule) return res.status(404).json({ error: "Working schedule not found" });
     const before = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { workingScheduleId: true } });
