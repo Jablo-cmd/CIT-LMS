@@ -10,10 +10,12 @@ enum UserRole {
   COMPANY_OWNER
   HR_MANAGER
   ADMIN_PERSONNEL
+  @@map("user_role")
 }
 enum EmploymentType {
   PERMANENT
   CONTRACT
+  @@map("employment_type")
 }
 enum EmploymentStatus {
   ACTIVE
@@ -21,6 +23,7 @@ enum EmploymentStatus {
   RESIGNED
   DISMISSED
   DECEASED
+  @@map("employment_status")
 }
 enum LeaveCategory {
   ANNUAL
@@ -31,12 +34,14 @@ enum LeaveCategory {
   UNPAID
   STUDY
   OTHER
+  @@map("leave_category")
 }
 enum LeaveTransactionType {
   DEDUCTION
   ADJUSTMENT
   REVERSAL
   VOID
+  @@map("leave_transaction_type")
 }
 enum DocumentCategory {
   ACADEMIC_QUALIFICATION
@@ -45,6 +50,7 @@ enum DocumentCategory {
   IDENTITY_PERSONAL
   EMPLOYMENT
   OTHER
+  @@map("document_category")
 }
 enum DisciplinaryOutcome {
   PENDING
@@ -55,12 +61,14 @@ enum DisciplinaryOutcome {
   SUSPENSION
   DISMISSAL
   OTHER
+  @@map("disciplinary_outcome")
 }
 enum RecommendationType {
   COMMENDATION
   PERFORMANCE
   PROMOTION
   OTHER
+  @@map("recommendation_type")
 }
 
 model User {
@@ -85,31 +93,31 @@ model User {
 
 model Employee {
   id String @id @default(uuid()) @db.Uuid
-  employeeNumber     String @unique
-  firstName          String
-  lastName           String
+  employeeNumber     String @unique @map("employee_number")
+  firstName          String @map("first_name")
+  lastName           String @map("last_name")
   nationality        String?
-  photoPath          String?
-  photoUpdatedAt     DateTime?
-  addressStreet      String?
-  addressSuburb      String?
-  addressCity        String?
-  addressProvince    String?
-  addressPostalCode  String?
+  photoPath          String? @map("photo_path")
+  photoUpdatedAt     DateTime? @map("photo_updated_at")
+  addressStreet      String? @map("address_street")
+  addressSuburb      String? @map("address_suburb")
+  addressCity        String? @map("address_city")
+  addressProvince    String? @map("address_province")
+  addressPostalCode  String? @map("address_postal_code")
   phone              String?
   email              String?
   employmentType     EmploymentType
   employmentStatus   EmploymentStatus @default(ACTIVE)
-  originalHireDate   DateTime @db.Date
-  contractStartDate  DateTime? @db.Date
-  contractEndDate    DateTime? @db.Date
-  departmentId       String? @db.Uuid
-  currentPosition    String?
-  deployedRole       String?
-  currentPostingId   String? @db.Uuid
-  workingScheduleId  String? @db.Uuid
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  originalHireDate   DateTime @db.Date @map("original_hire_date")
+  contractStartDate  DateTime? @db.Date @map("contract_start_date")
+  contractEndDate    DateTime? @db.Date @map("contract_end_date")
+  departmentId       String? @db.Uuid @map("department_id")
+  currentPosition    String? @map("current_position")
+  deployedRole       String? @map("deployed_role")
+  currentPostingId   String? @db.Uuid @map("current_posting_id")
+  workingScheduleId  String? @db.Uuid @map("working_schedule_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
   department         Department? @relation(fields: [departmentId], references: [id])
   currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id])
   workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id])
@@ -124,14 +132,16 @@ model Employee {
   @@index([employmentStatus])
   @@index([currentPosition])
   @@index([currentPostingId])
+  @@map("employees")
 }
 
 model Department {
   id String @id @default(uuid()) @db.Uuid
   name      String @unique
-  isActive  Boolean @default(true)
+  isActive  Boolean @default(true) @map("is_active")
   employees Employee[]
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+  @@map("departments")
 }
 
 model PostingSite {
@@ -141,63 +151,66 @@ model PostingSite {
   address        String?
   city           String?
   province       String?
-  isHeadOffice   Boolean @default(false)
-  isActive       Boolean @default(true)
+  isHeadOffice   Boolean @default(false) @map("is_head_office")
+  isActive       Boolean @default(true) @map("is_active")
   employees      Employee[] @relation("CurrentPosting")
   previousHistory EmploymentHistory[] @relation("PreviousPosting")
   newHistory     EmploymentHistory[] @relation("NewPosting")
   overtime       OvertimeEntry[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime @default(now()) @map("created_at")
+  @@map("posting_sites")
 }
 
 model EmploymentHistory {
   id String @id @default(uuid()) @db.Uuid
-  employeeId           String @db.Uuid
-  previousPosition     String?
-  newPosition          String?
-  previousDeployedRole String?
-  newDeployedRole      String?
-  previousPostingId    String? @db.Uuid
-  newPostingId         String? @db.Uuid
-  effectiveDate        DateTime @db.Date
-  recordedAt           DateTime @default(now())
+  employeeId           String @db.Uuid @map("employee_id")
+  previousPosition     String? @map("previous_position")
+  newPosition          String? @map("new_position")
+  previousDeployedRole String? @map("previous_deployed_role")
+  newDeployedRole      String? @map("new_deployed_role")
+  previousPostingId    String? @db.Uuid @map("previous_posting_id")
+  newPostingId         String? @db.Uuid @map("new_posting_id")
+  effectiveDate        DateTime @db.Date @map("effective_date")
+  recordedAt           DateTime @default(now()) @map("recorded_at")
   reason               String
-  managerName          String?
+  managerName          String? @map("manager_name")
   notes                String?
-  supportingDocumentId String? @db.Uuid @unique
-  recordedById         String @db.Uuid
+  supportingDocumentId String? @db.Uuid @unique @map("supporting_document_id")
+  recordedById         String @db.Uuid @map("recorded_by_id")
   employee             Employee @relation(fields: [employeeId], references: [id])
   previousPosting      PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
   newPosting           PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
   supportingDocument   EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id])
   recordedBy           User @relation("HistoryRecordedBy", fields: [recordedById], references: [id])
   @@index([employeeId, effectiveDate])
+  @@map("employment_history")
 }
 
 model NextOfKin {
   id String @id @default(uuid()) @db.Uuid
-  employeeId   String @db.Uuid
-  fullName     String
+  employeeId   String @db.Uuid @map("employee_id")
+  fullName     String @map("full_name")
   relationship String
   phone        String
   email        String?
-  isPrimary    Boolean @default(false)
+  isPrimary    Boolean @default(false) @map("is_primary")
   notes        String?
   employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@map("next_of_kin")
 }
 
 model EmployeeDocument {
   id String @id @default(uuid()) @db.Uuid
-  employeeId      String @db.Uuid
+  employeeId      String @db.Uuid @map("employee_id")
   title           String
   category        DocumentCategory
-  originalName    String
-  storagePath     String @unique
-  mimeType        String
-  sizeBytes       Int
+  originalName    String @map("original_name")
+  storagePath     String @unique @map("storage_path")
+  mimeType        String @map("mime_type")
+  sizeBytes       Int @map("size_bytes")
   description     String?
-  uploadedAt      DateTime @default(now())
-  uploadedById    String @db.Uuid
+  uploadedAt      DateTime @default(now()) @map("uploaded_at")
+  uploadedById    String @db.Uuid @map("uploaded_by_id")
   employee        Employee @relation(fields: [employeeId], references: [id])
   uploadedBy      User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
   historyEvent    EmploymentHistory? @relation("HistoryDocument")
@@ -205,135 +218,144 @@ model EmployeeDocument {
   overtimeFiles   OvertimeEntry[]
   disciplinary    DisciplinaryRecord[]
   recommendations Recommendation[]
+  @@map("employee_documents")
 }
 
 model WorkingSchedule {
   id String @id @default(uuid()) @db.Uuid
   name        String @unique
-  workingDays Int[]
+  workingDays Int[] @map("working_days")
   description String?
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
+  isActive    Boolean @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
   employees   Employee[]
+  @@map("working_schedules")
 }
 
 model PublicHoliday {
   id String @id @default(uuid()) @db.Uuid
   date        DateTime @unique @db.Date
   name        String
-  countryCode String @default("ZA")
-  createdAt   DateTime @default(now())
+  countryCode String @default("ZA") @map("country_code")
+  createdAt   DateTime @default(now()) @map("created_at")
   @@index([date, countryCode])
+  @@map("public_holidays")
 }
 
 model LeavePolicy {
   id String @id @default(uuid()) @db.Uuid
   category        LeaveCategory
   name            String
-  entitlementDays Decimal? @db.Decimal(7,2)
-  accrualPerMonth Decimal? @db.Decimal(7,3)
+  entitlementDays Decimal? @db.Decimal(7,2) @map("entitlement_days")
+  accrualPerMonth Decimal? @db.Decimal(7,3) @map("accrual_per_month")
   employmentType  EmploymentType?
-  effectiveFrom   DateTime @db.Date
-  effectiveTo     DateTime? @db.Date
-  carryOverLimit  Decimal? @db.Decimal(7,2)
+  effectiveFrom   DateTime @db.Date @map("effective_from")
+  effectiveTo     DateTime? @db.Date @map("effective_to")
+  carryOverLimit  Decimal? @db.Decimal(7,2) @map("carry_over_limit")
   eligibility     String?
   notes           String?
-  isActive        Boolean @default(true)
-  createdAt       DateTime @default(now())
-  createdById     String? @db.Uuid
+  isActive        Boolean @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdById     String? @db.Uuid @map("created_by_id")
   createdBy       User? @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id])
   transactions    LeaveTransaction[]
   @@index([category, effectiveFrom, effectiveTo])
+  @@map("leave_policies")
 }
 
 model LeaveTransaction {
   id String @id @default(uuid()) @db.Uuid
-  employeeId         String @db.Uuid
-  policyId           String? @db.Uuid
+  employeeId         String @db.Uuid @map("employee_id")
+  policyId           String? @db.Uuid @map("policy_id")
   category           LeaveCategory
   type               LeaveTransactionType @default(DEDUCTION)
-  firstLeaveDate     DateTime? @db.Date
-  lastLeaveDate      DateTime? @db.Date
-  formSubmissionDate DateTime? @db.Date
-  capturedAt         DateTime @default(now())
+  firstLeaveDate     DateTime? @db.Date @map("first_leave_date")
+  lastLeaveDate      DateTime? @db.Date @map("last_leave_date")
+  formSubmissionDate DateTime? @db.Date @map("form_submission_date")
+  capturedAt         DateTime @default(now()) @map("captured_at")
   days               Decimal @db.Decimal(7,2)
-  balanceBefore      Decimal? @db.Decimal(9,2)
-  balanceAfter       Decimal? @db.Decimal(9,2)
+  balanceBefore      Decimal? @db.Decimal(9,2) @map("balance_before")
+  balanceAfter       Decimal? @db.Decimal(9,2) @map("balance_after")
   reason             String?
-  referenceNumber    String?
-  capturedById       String @db.Uuid
+  referenceNumber    String? @map("reference_number")
+  capturedById       String @db.Uuid @map("captured_by_id")
   employee           Employee @relation(fields: [employeeId], references: [id])
   policy             LeavePolicy? @relation(fields: [policyId], references: [id])
   capturedBy         User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
   documents          EmployeeDocument[]
   @@index([employeeId, category, capturedAt])
   @@unique([employeeId, category, referenceNumber])
+  @@map("leave_transactions")
 }
 
 model OvertimeEntry {
   id String @id @default(uuid()) @db.Uuid
-  employeeId     String @db.Uuid
-  postingSiteId  String? @db.Uuid
-  workDate       DateTime @db.Date
-  startTime      String
-  finishTime     String
-  totalHours     Decimal @db.Decimal(6,2)
-  confirmedBy    String
-  capturedById   String @db.Uuid
+  employeeId     String @db.Uuid @map("employee_id")
+  postingSiteId  String? @db.Uuid @map("posting_site_id")
+  workDate       DateTime @db.Date @map("work_date")
+  startTime      String @map("start_time")
+  finishTime     String @map("finish_time")
+  totalHours     Decimal @db.Decimal(6,2) @map("total_hours")
+  confirmedBy    String @map("confirmed_by")
+  capturedById   String @db.Uuid @map("captured_by_id")
   notes          String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime @default(now()) @map("created_at")
   employee       Employee @relation(fields: [employeeId], references: [id])
   postingSite    PostingSite? @relation(fields: [postingSiteId], references: [id])
   capturedBy     User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id])
   documents      EmployeeDocument[]
   @@index([workDate, employeeId])
+  @@map("overtime_entries")
 }
 
 model DisciplinaryRecord {
   id String @id @default(uuid()) @db.Uuid
-  employeeId    String @db.Uuid
-  hearingDate   DateTime @db.Date
+  employeeId    String @db.Uuid @map("employee_id")
+  hearingDate   DateTime @db.Date @map("hearing_date")
   matter        String
   finding       String?
   outcome       DisciplinaryOutcome @default(PENDING)
   sanction      String?
   notes         String?
-  capturedById  String @db.Uuid
-  createdAt     DateTime @default(now())
+  capturedById  String @db.Uuid @map("captured_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
   employee      Employee @relation(fields: [employeeId], references: [id])
   capturedBy    User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id])
   documents     EmployeeDocument[]
   @@index([employeeId, hearingDate])
+  @@map("disciplinary_records")
 }
 
 model Recommendation {
   id String @id @default(uuid()) @db.Uuid
-  employeeId  String @db.Uuid
+  employeeId  String @db.Uuid @map("employee_id")
   date        DateTime @db.Date
   type        RecommendationType
   description String
-  submittedBy String
-  capturedById String @db.Uuid
+  submittedBy String @map("submitted_by")
+  capturedById String @db.Uuid @map("captured_by_id")
   comments    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
   employee    Employee @relation(fields: [employeeId], references: [id])
   capturedBy  User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id])
   documents   EmployeeDocument[]
   @@index([employeeId, date])
+  @@map("recommendations")
 }
 
 model AuditLog {
   id String @id @default(uuid()) @db.Uuid
-  userId      String? @db.Uuid
+  userId      String? @db.Uuid @map("user_id")
   action      String
-  entityType  String
-  entityId    String? @db.Uuid
-  beforeData  Json?
-  afterData   Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  entityType  String @map("entity_type")
+  entityId    String? @db.Uuid @map("entity_id")
+  beforeData  Json? @map("before_data")
+  afterData   Json? @map("after_data")
+  ipAddress   String? @map("ip_address")
+  userAgent   String? @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
   user        User? @relation(fields: [userId], references: [id])
   @@index([entityType, entityId, createdAt])
   @@index([userId, createdAt])
+  @@map("audit_logs")
 }
