@@ -22,7 +22,7 @@ export function toDocumentView<T extends { title: string; mimeType: string; crea
     .slice(0, 120) || "employee-document";
   return {
     ...document,
-    originalName: \`\${safeTitle}\${extension}\`,
+    originalName: safeTitle + extension,
     description: null,
     uploadedAt: document.createdAt
   };
