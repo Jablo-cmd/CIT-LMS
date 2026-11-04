@@ -60,7 +60,7 @@ reportsRouter.get("/leave", hrOnly, async (req, res, next) => {
     for (const item of items) {
       const row=totals.get(item.category)??{category:item.category,deductions:0,adjustments:0,count:0};
       if(item.transactionType==="DEDUCTION") row.deductions+=Number(item.days);
-      else row.adjustments+=Number(item.days);
+      else if(item.transactionType==="ADJUSTMENT" || item.transactionType==="REVERSAL") row.adjustments+=Number(item.days);
       row.count++;
       totals.set(item.category,row);
     }
