@@ -182,7 +182,7 @@ model PublicHoliday {
   date        DateTime @db.Date
   name        String
   countryCode String @default("ZA") @map("country_code")
-  @@unique([countryCode, date])
+  @@unique([countryCode, date], map: "public_holidays_country_code_date_key")
   @@map("public_holidays")
 }
 
@@ -200,7 +200,7 @@ model EmploymentHistory {
   reason                String
   managerName           String? @map("manager_name")
   notes                 String?
-  supportingDocumentId  String? @unique @db.Uuid @map("supporting_document_id")
+  supportingDocumentId  String? @unique(map: "employment_history_supporting_document_id_key") @db.Uuid @map("supporting_document_id")
   recordedById          String @db.Uuid @map("recorded_by_id")
   employee              Employee @relation(fields: [employeeId], references: [id])
   previousPosting       PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
