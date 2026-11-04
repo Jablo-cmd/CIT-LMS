@@ -53,12 +53,12 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
     const input = z.object({
       newPosition: z.string().trim().max(120).optional(),
       newDeployedRole: z.string().trim().max(120).optional(),
-      newPostingId: z.string().optional(),
+      newPostingId: z.string().uuid().optional(),
       effectiveDate: z.coerce.date(),
       reason: z.string().trim().min(5).max(1000),
       managerName: z.string().trim().max(120).optional(),
       notes: z.string().max(3000).optional(),
-      supportingDocumentId: z.string().min(1)
+      supportingDocumentId: z.string().uuid()
     }).refine(v => !!v.newPosition || !!v.newDeployedRole || !!v.newPostingId, { message: "A position or posting change is required" }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
