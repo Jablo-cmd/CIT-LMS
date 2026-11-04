@@ -59,7 +59,7 @@ reportsRouter.get("/leave", hrOnly, async (req, res, next) => {
     const totals = new Map<string,{category:string; deductions:number; adjustments:number; count:number}>();
     for (const item of items) {
       const row=totals.get(item.category)??{category:item.category,deductions:0,adjustments:0,count:0};
-      if(item.type==="DEDUCTION") row.deductions+=Number(item.days);
+      if(item.transactionType==="DEDUCTION") row.deductions+=Number(item.days);
       else row.adjustments+=Number(item.days);
       row.count++;
       totals.set(item.category,row);
