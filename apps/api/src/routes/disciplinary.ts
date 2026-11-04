@@ -35,7 +35,7 @@ disciplinaryRouter.post("/", async (req, res, next) => {
       outcome: z.enum(["PENDING","NO_ACTION","VERBAL_WARNING","WRITTEN_WARNING","FINAL_WARNING","SUSPENSION","DISMISSAL","OTHER"]).default("PENDING"),
       sanction: z.string().max(2000).optional(),
       notes: z.string().max(3000).optional(),
-      documentIds: z.array(z.string().uuid()).max(10).optional()
+      documentIds: z.array(z.string().uuid()).max(10).refine(ids => new Set(ids).size === ids.length, "Document IDs must be unique").optional()
     }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId }, select: { id: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
