@@ -64,6 +64,6 @@ reportsRouter.get("/leave", hrOnly, async (req, res, next) => {
       row.count++;
       totals.set(item.category,row);
     }
-    return res.json({ year, totals:[...totals.values()], transactions:items });
+    return res.json({ year, totals:[...totals.values()], transactions:items.map(item => ({ ...item, type: item.transactionType, reason: item.notes })) });
   } catch(e){return next(e);}
 });
