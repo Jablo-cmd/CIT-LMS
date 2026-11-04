@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { toDocumentView } from "../services/document-view.js";
 
 export const postingsRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -40,10 +41,10 @@ postingsRouter.get("/history/:employeeId", allStaff, async (req, res, next) => {
   try {
     const items = await prisma.employmentHistory.findMany({
       where: { employeeId: String(req.params.employeeId) },
-      include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } }, recordedBy: { select: { fullName: true } } },
+      include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true,  createdAt:true } }, recordedBy: { select: { fullName: true } } },
       orderBy: [{ effectiveDate: "desc" }, { recordedAt: "desc" }]
     });
-    return res.json({ items });
+    return res.json({ items: items.map(item => ({ ...item, supportingDocument: item.supportingDocument ? toDocumentView(item.supportingDocument) : null })) });
   } catch (e) { return next(e); }
 });
 
@@ -83,7 +84,7 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
           managerName: input.managerName, notes: input.notes,
           supportingDocumentId: document.id, recordedById: req.auth!.userId
         },
-        include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } }
+        include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true,  createdAt:true } } }
       });
       await tx.employee.update({ where: { id: employee.id }, data: {
         ...(input.newPosition ? { currentPosition: input.newPosition } : {}),
@@ -93,6 +94,6 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
       return created;
     });
     await writeAudit(req, "CREATE", "EmploymentHistory", history.id, undefined, history);
-    return res.status(201).json({ history });
+    return res.status(201).json({ history: { ...history, supportingDocument: history.supportingDocument ? toDocumentView(history.supportingDocument) : null } });
   } catch (e) { return next(e); }
 });
