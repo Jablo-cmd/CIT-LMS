@@ -229,12 +229,12 @@ model LeavePolicy {
   id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   category        LeaveCategory
   name            String
-  entitlementDays Decimal? @map("entitlement_days")
-  accrualPerMonth Decimal? @map("accrual_per_month")
+  entitlementDays Decimal? @db.Decimal(8, 2) @map("entitlement_days")
+  accrualPerMonth Decimal? @db.Decimal(8, 2) @map("accrual_per_month")
   employmentType  EmploymentType? @map("employment_type")
   effectiveFrom   DateTime @db.Date @map("effective_from")
   effectiveTo     DateTime? @db.Date @map("effective_to")
-  carryOverLimit  Decimal? @map("carry_over_limit")
+  carryOverLimit  Decimal? @db.Decimal(8, 2) @map("carry_over_limit")
   eligibility     String?
   notes           String?
   createdById     String @db.Uuid @map("created_by_id")
@@ -249,8 +249,8 @@ model LeaveTransaction {
   employeeId        String @db.Uuid @map("employee_id")
   category          LeaveCategory
   transactionType   LeaveTransactionType @map("transaction_type")
-  days              Decimal
-  balanceAfter      Decimal? @map("balance_after")
+  days              Decimal @db.Decimal(8, 2)
+  balanceAfter      Decimal? @db.Decimal(8, 2) @map("balance_after")
   firstLeaveDate    DateTime? @db.Date @map("first_leave_date")
   lastLeaveDate     DateTime? @db.Date @map("last_leave_date")
   referenceNumber   String? @map("reference_number")
@@ -278,7 +278,7 @@ model OvertimeEntry {
   workDate     DateTime @db.Date @map("work_date")
   startTime    String @map("start_time")
   finishTime   String @map("finish_time")
-  totalHours   Decimal @map("total_hours")
+  totalHours   Decimal @db.Decimal(6, 2) @map("total_hours")
   confirmedBy  String @map("confirmed_by")
   capturedById String @db.Uuid @map("captured_by_id")
   notes        String?
