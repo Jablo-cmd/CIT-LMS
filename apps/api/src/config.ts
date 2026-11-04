@@ -5,8 +5,6 @@ export const configSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   WEB_ORIGIN: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
-  JWT_ACCESS_SECRET: z.string().min(32).optional(),
-  JWT_ACCESS_TTL: z.string().default("15m"),
   COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
   STORAGE_DRIVER: z.enum(["local", "supabase"]).default("local"),
   STORAGE_ROOT: z.string().default("./storage"),
