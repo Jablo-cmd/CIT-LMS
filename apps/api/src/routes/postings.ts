@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { toDocumentView } from "../services/document-view.js";
 
 export const postingsRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -40,10 +41,10 @@ postingsRouter.get("/history/:employeeId", allStaff, async (req, res, next) => {
   try {
     const items = await prisma.employmentHistory.findMany({
       where: { employeeId: String(req.params.employeeId) },
-      include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } }, recordedBy: { select: { fullName: true } } },
+      include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } }, recordedBy: { select: { fullName: true } } },
       orderBy: [{ effectiveDate: "desc" }, { recordedAt: "desc" }]
     });
-    return res.json({ items });
+    return res.json({ items: items.map(item => ({ ...item, supportingDocument: item.supportingDocument && (req.auth!.role !== "ADMIN_PERSONNEL" || item.supportingDocument.category !== "IDENTITY_PERSONAL") ? toDocumentView(item.supportingDocument) : null })) });
   } catch (e) { return next(e); }
 });
 
@@ -52,19 +53,19 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
     const input = z.object({
       newPosition: z.string().trim().max(120).optional(),
       newDeployedRole: z.string().trim().max(120).optional(),
-      newPostingId: z.string().optional(),
+      newPostingId: z.string().uuid().optional(),
       effectiveDate: z.coerce.date(),
       reason: z.string().trim().min(5).max(1000),
       managerName: z.string().trim().max(120).optional(),
       notes: z.string().max(3000).optional(),
-      supportingDocumentId: z.string().min(1)
+      supportingDocumentId: z.string().uuid()
     }).refine(v => !!v.newPosition || !!v.newDeployedRole || !!v.newPostingId, { message: "A position or posting change is required" }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     if (input.effectiveDate < employee.originalHireDate) return res.status(400).json({ error: "An employment history event cannot predate the original CIT hire date" });
     const latestEvent = await prisma.employmentHistory.findFirst({ where: { employeeId: employee.id }, orderBy: [{ effectiveDate:"desc" },{ recordedAt:"desc" }], select: { effectiveDate:true } });
     if (latestEvent && input.effectiveDate < latestEvent.effectiveDate) return res.status(409).json({ error: "Assignment events must be recorded in chronological order. Correct the existing history with HR before adding an earlier event." });
-    const document = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id } });
+    const document = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
     if (!document) return res.status(400).json({ error: "A supporting document belonging to this employee is required" });
     if (input.newPostingId) {
       const site = await prisma.postingSite.findFirst({ where: { id: input.newPostingId, isActive: true } });
@@ -83,7 +84,7 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
           managerName: input.managerName, notes: input.notes,
           supportingDocumentId: document.id, recordedById: req.auth!.userId
         },
-        include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } }
+        include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } } }
       });
       await tx.employee.update({ where: { id: employee.id }, data: {
         ...(input.newPosition ? { currentPosition: input.newPosition } : {}),
@@ -93,6 +94,6 @@ postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
       return created;
     });
     await writeAudit(req, "CREATE", "EmploymentHistory", history.id, undefined, history);
-    return res.status(201).json({ history });
+    return res.status(201).json({ history: { ...history, supportingDocument: history.supportingDocument ? toDocumentView(history.supportingDocument) : null } });
   } catch (e) { return next(e); }
 });

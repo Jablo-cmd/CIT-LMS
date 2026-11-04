@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { API_URL,api } from "../../../lib/api";
 
-type Kin={id:string;fullName:string;relationship:string;phone:string;email?:string|null;isPrimary:boolean};
+type Kin={id:string;fullName:string;relationship:string;phone?:string|null;email?:string|null;isPrimary:boolean};
 type Document={id:string;title:string;category:string;originalName:string;sizeBytes:number;uploadedAt:string;uploadedBy?:{fullName:string}};
 type Site={id:string;name:string;code:string};
 type History={id:string;previousPosition?:string|null;newPosition?:string|null;previousDeployedRole?:string|null;newDeployedRole?:string|null;effectiveDate:string;recordedAt:string;reason:string;managerName?:string|null;newPosting?:{name:string}|null;previousPosting?:{name:string}|null;supportingDocument?:{id:string;title:string}|null;recordedBy?:{fullName:string}};
@@ -14,7 +14,7 @@ export default function EmployeeProfilePage(){
   const params=useParams<{id:string}>();const router=useRouter();const id=params.id;
   const [employee,setEmployee]=useState<Employee|null>(null);const [documents,setDocuments]=useState<Document[]>([]);const [sites,setSites]=useState<Site[]>([]);const [role,setRole]=useState("");
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [kin,setKin]=useState({fullName:"",relationship:"",phone:"",email:"",isPrimary:false});
-  const [docMeta,setDocMeta]=useState({title:"",category:"EMPLOYMENT",description:""});const [docFile,setDocFile]=useState<File|null>(null);const [photo,setPhoto]=useState<File|null>(null);
+  const [docMeta,setDocMeta]=useState({title:"",category:"EMPLOYMENT"});const [docFile,setDocFile]=useState<File|null>(null);const [photo,setPhoto]=useState<File|null>(null);
   const [assignment,setAssignment]=useState({newPosition:"",newDeployedRole:"",newPostingId:"",effectiveDate:"",reason:"Initial appointment",managerName:"",supportingDocumentId:""});
   async function load(){
     try{
@@ -25,7 +25,7 @@ export default function EmployeeProfilePage(){
   useEffect(()=>{void load();},[id]);
   async function addAssignment(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{await api(`/postings/history/${id}`,{method:"POST",body:JSON.stringify({...assignment,newPosition:assignment.newPosition||undefined,newDeployedRole:assignment.newDeployedRole||undefined,newPostingId:assignment.newPostingId||undefined,managerName:assignment.managerName||undefined})});setAssignment({newPosition:"",newDeployedRole:"",newPostingId:"",effectiveDate:"",reason:"",managerName:"",supportingDocumentId:""});await load();}catch(e){setError(e instanceof Error?e.message:"Could not save employment history");}finally{setBusy(false);}}
   async function addKin(e:FormEvent){e.preventDefault();setBusy(true);setError("");try{await api(`/employees/${id}/next-of-kin`,{method:"POST",body:JSON.stringify(kin)});setKin({fullName:"",relationship:"",phone:"",email:"",isPrimary:false});await load();}catch(e){setError(e instanceof Error?e.message:"Could not save next of kin");}finally{setBusy(false);}}
-  async function uploadDoc(e:FormEvent){e.preventDefault();if(!docFile)return;setBusy(true);setError("");try{const body=new FormData();body.set("file",docFile);body.set("title",docMeta.title);body.set("category",docMeta.category);body.set("description",docMeta.description);await api(`/documents/${id}`,{method:"POST",body});setDocFile(null);setDocMeta({title:"",category:"EMPLOYMENT",description:""});await load();}catch(e){setError(e instanceof Error?e.message:"Could not upload document");}finally{setBusy(false);}}
+  async function uploadDoc(e:FormEvent){e.preventDefault();if(!docFile)return;setBusy(true);setError("");try{const body=new FormData();body.set("file",docFile);body.set("title",docMeta.title);body.set("category",docMeta.category);await api(`/documents/${id}`,{method:"POST",body});setDocFile(null);setDocMeta({title:"",category:"EMPLOYMENT"});await load();}catch(e){setError(e instanceof Error?e.message:"Could not upload document");}finally{setBusy(false);}}
   async function uploadPhoto(){if(!photo)return;setBusy(true);setError("");try{const body=new FormData();body.set("file",photo);await api(`/documents/photos/${id}`,{method:"POST",body});setPhoto(null);await load();}catch(e){setError(e instanceof Error?e.message:"Could not update photograph");}finally{setBusy(false);}}
   function download(doc:Document){const link=document.createElement("a");link.href=`${API_URL}/documents/${doc.id}/download`;link.rel="noopener";document.body.append(link);link.click();link.remove();}
   if(!employee)return <main className="content"><Link href="/employees" className="back-link">← Employee directory</Link><div className="empty-state">{error||"Loading employee profile…"}</div></main>;

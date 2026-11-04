@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { toDocumentView } from "../services/document-view.js";
 
 export const employeesRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -25,8 +26,8 @@ const createSchema = z.object({
   originalHireDate: z.coerce.date(),
   contractStartDate: z.coerce.date().optional(),
   contractEndDate: z.coerce.date().optional(),
-  departmentId: z.string().optional(),
-  workingScheduleId: z.string().optional()
+  departmentId: z.string().uuid().optional(),
+  workingScheduleId: z.string().uuid().optional()
 }).superRefine((v, ctx) => {
   if (v.employmentType === "CONTRACT" && !v.contractStartDate) ctx.addIssue({ code: "custom", path: ["contractStartDate"], message: "Contract start date is required" });
   if (v.contractStartDate && v.contractEndDate && v.contractEndDate < v.contractStartDate) ctx.addIssue({ code: "custom", path: ["contractEndDate"], message: "Contract end date must follow start date" });
@@ -74,19 +75,20 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
       where: { id: String(req.params.id) },
       include: {
         department: true, currentPosting: true, workingSchedule: true, nextOfKin: true,
-        history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } }, recordedBy: { select: { fullName:true } } } },
-        documents: { where: { disciplinary: { none: {} } }, select: { id:true, title:true, category:true, originalName:true, mimeType:true, sizeBytes:true, description:true, uploadedAt:true, uploadedBy:{select:{fullName:true}} }, orderBy: { uploadedAt: "desc" } }
+        history: { orderBy: { effectiveDate: "desc" }, include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } }, recordedBy: { select: { fullName:true } } } },
+        documents: { where: { disciplinaryRecord: { is: null } }, select: { id:true, title:true, category:true,  mimeType:true, sizeBytes:true,  createdAt:true, uploadedBy:{select:{fullName:true}} }, orderBy: { createdAt: "desc" } }
       }
     });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const { photoPath: _privatePhotoPath, ...publicEmployee } = employee;
+    const employeeView = { ...employee, documents: employee.documents.map(toDocumentView), history: employee.history.map(item => ({ ...item, supportingDocument: item.supportingDocument && (req.auth!.role !== "ADMIN_PERSONNEL" || item.supportingDocument.category !== "IDENTITY_PERSONAL") ? toDocumentView(item.supportingDocument) : null })) };
+    const { photoPath: _privatePhotoPath, ...publicEmployee } = employeeView;
     if (req.auth!.role === "ADMIN_PERSONNEL") {
       const safe = {
         ...publicEmployee,
         nationality: null, addressStreet: null, addressSuburb: null, addressCity: null,
         addressProvince: null, addressPostalCode: null, phone: null, email: null,
         nextOfKin: [],
-        documents: employee.documents.filter(d => d.category !== "IDENTITY_PERSONAL")
+        documents: employeeView.documents.filter(d => d.category !== "IDENTITY_PERSONAL")
       };
       return res.json({ employee: safe });
     }
@@ -118,12 +120,12 @@ const updateSchema = z.object({
   addressProvince: z.string().max(120).nullable().optional(),
   addressPostalCode: z.string().max(20).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
-  email: z.string().email().max(254).nullable().optional(),
+  email: z.string().email().max(254).nullable().optional().or(z.literal("")),
   employmentType: z.enum(["PERMANENT","CONTRACT"]).optional(),
   employmentStatus: z.enum(["ACTIVE","SUSPENDED","RESIGNED","DISMISSED","DECEASED"]).optional(),
   contractStartDate: z.coerce.date().nullable().optional(),
   contractEndDate: z.coerce.date().nullable().optional(),
-  departmentId: z.string().nullable().optional(),
+  departmentId: z.string().uuid().nullable().optional(),
 }).refine(v => Object.keys(v).length > 0, { message: "At least one field must be supplied" });
 
 employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
@@ -134,7 +136,7 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
     const before = await prisma.employee.findUnique({ where: { id: String(req.params.id) } });
     if (!before) return res.status(404).json({ error: "Employee not found" });
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
-    const employee = await prisma.employee.update({ where: { id: String(req.params.id) }, data: input });
+    const employee = await prisma.employee.update({ where: { id: String(req.params.id) }, data: { ...input, ...(input.email === "" ? { email: null } : {}) } });
     await writeAudit(req, "UPDATE", "Employee", employee.id, before, employee);
     return res.json({ employee });
   } catch (error) { return next(error); }
@@ -142,12 +144,12 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
 
 employeesRouter.post("/:id/next-of-kin", hrOnly, async (req, res, next) => {
   try {
-    const input = z.object({ fullName:z.string().trim().min(2).max(120), relationship:z.string().trim().min(2).max(80), phone:z.string().trim().min(5).max(40), email:z.string().email().optional(), isPrimary:z.boolean().default(false), notes:z.string().max(1000).optional() }).parse(req.body);
+    const input = z.object({ fullName:z.string().trim().min(2).max(120), relationship:z.string().trim().min(2).max(80), phone:z.string().trim().min(5).max(40).optional(), email:z.string().email().optional().or(z.literal("")), address:z.string().max(1000).optional(), isPrimary:z.boolean().default(false) }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id:String(req.params.id) }, select:{ id:true } });
     if (!employee) return res.status(404).json({ error:"Employee not found" });
     const contact = await prisma.$transaction(async tx => {
       if (input.isPrimary) await tx.nextOfKin.updateMany({ where:{ employeeId:employee.id, isPrimary:true }, data:{ isPrimary:false } });
-      return tx.nextOfKin.create({ data:{ ...input, employeeId:employee.id } });
+      return tx.nextOfKin.create({ data:{ ...input, email: input.email || null, employeeId:employee.id } });
     });
     await writeAudit(req,"CREATE","NextOfKin",contact.id,undefined,contact);
     return res.status(201).json({ contact });

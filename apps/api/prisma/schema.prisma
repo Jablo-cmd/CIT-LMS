@@ -10,18 +10,24 @@ enum UserRole {
   COMPANY_OWNER
   HR_MANAGER
   ADMIN_PERSONNEL
+  @@map("user_role")
 }
+
 enum EmploymentType {
   PERMANENT
   CONTRACT
+  @@map("employment_type")
 }
+
 enum EmploymentStatus {
   ACTIVE
   SUSPENDED
   RESIGNED
   DISMISSED
   DECEASED
+  @@map("employment_status")
 }
+
 enum LeaveCategory {
   ANNUAL
   SICK
@@ -31,13 +37,17 @@ enum LeaveCategory {
   UNPAID
   STUDY
   OTHER
+  @@map("leave_category")
 }
+
 enum LeaveTransactionType {
   DEDUCTION
   ADJUSTMENT
   REVERSAL
   VOID
+  @@map("leave_transaction_type")
 }
+
 enum DocumentCategory {
   ACADEMIC_QUALIFICATION
   PROFESSIONAL_CERTIFICATE
@@ -45,7 +55,9 @@ enum DocumentCategory {
   IDENTITY_PERSONAL
   EMPLOYMENT
   OTHER
+  @@map("document_category")
 }
+
 enum DisciplinaryOutcome {
   PENDING
   NO_ACTION
@@ -55,286 +67,303 @@ enum DisciplinaryOutcome {
   SUSPENSION
   DISMISSAL
   OTHER
+  @@map("disciplinary_outcome")
 }
+
 enum RecommendationType {
   COMMENDATION
   PERFORMANCE
   PROMOTION
   OTHER
+  @@map("recommendation_type")
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  fullName      String
-  passwordHash  String
-  tokenVersion  Int      @default(0)
-  role          UserRole
-  isActive      Boolean  @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  auditLogs     AuditLog[]
-  capturedLeave LeaveTransaction[] @relation("LeaveCapturedBy")
-  uploadedDocs  EmployeeDocument[] @relation("DocumentUploadedBy")
-  historyEvents EmploymentHistory[] @relation("HistoryRecordedBy")
-  overtimeEntries OvertimeEntry[] @relation("OvertimeCapturedBy")
-  disciplinaryRecords DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
-  recommendations Recommendation[] @relation("RecommendationCapturedBy")
-  leavePoliciesCreated LeavePolicy[] @relation("LeavePolicyCreatedBy")
+  id                    String   @id @db.Uuid
+  email                 String   @unique
+  fullName              String   @map("full_name")
+  role                  UserRole
+  isActive              Boolean  @default(true) @map("is_active")
+  lastLoginAt           DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  auditLogs             AuditLog[]
+  capturedLeave         LeaveTransaction[] @relation("LeaveCapturedBy")
+  uploadedDocs          EmployeeDocument[] @relation("DocumentUploadedBy")
+  historyEvents         EmploymentHistory[] @relation("HistoryRecordedBy")
+  overtimeEntries       OvertimeEntry[] @relation("OvertimeCapturedBy")
+  disciplinaryRecords   DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
+  recommendations       Recommendation[] @relation("RecommendationCapturedBy")
+  leavePoliciesCreated  LeavePolicy[] @relation("LeavePolicyCreatedBy")
+  @@map("profiles")
 }
 
 model Employee {
-  id                 String @id @default(cuid())
-  employeeNumber     String @unique
-  firstName          String
-  lastName           String
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeNumber     String   @unique @map("employee_number")
+  firstName          String   @map("first_name")
+  lastName           String   @map("last_name")
   nationality        String?
-  photoPath          String?
-  photoUpdatedAt     DateTime?
-  addressStreet      String?
-  addressSuburb      String?
-  addressCity        String?
-  addressProvince    String?
-  addressPostalCode  String?
+  photoPath          String?  @map("photo_path")
+  photoUpdatedAt     DateTime? @map("photo_updated_at") @db.Timestamptz(6)
+  addressStreet      String?  @map("address_street")
+  addressSuburb      String?  @map("address_suburb")
+  addressCity        String?  @map("address_city")
+  addressProvince    String?  @map("address_province")
+  addressPostalCode  String?  @map("address_postal_code")
   phone              String?
   email              String?
-  employmentType     EmploymentType
-  employmentStatus   EmploymentStatus @default(ACTIVE)
-  originalHireDate   DateTime
-  contractStartDate  DateTime?
-  contractEndDate    DateTime?
-  departmentId       String?
-  currentPosition    String?
-  deployedRole       String?
-  currentPostingId   String?
-  workingScheduleId  String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  department         Department? @relation(fields: [departmentId], references: [id])
-  currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id])
-  workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id])
+  employmentType     EmploymentType @map("employment_type")
+  employmentStatus   EmploymentStatus @default(ACTIVE) @map("employment_status")
+  originalHireDate   DateTime @db.Date @map("original_hire_date")
+  contractStartDate  DateTime? @db.Date @map("contract_start_date")
+  contractEndDate    DateTime? @db.Date @map("contract_end_date")
+  departmentId       String?  @db.Uuid @map("department_id")
+  currentPosition    String?  @map("current_position")
+  deployedRole       String?  @map("deployed_role")
+  currentPostingId   String?  @db.Uuid @map("current_posting_id")
+  workingScheduleId  String?  @db.Uuid @map("working_schedule_id")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  department         Department? @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   history            EmploymentHistory[]
   nextOfKin          NextOfKin[]
   documents          EmployeeDocument[]
   leaveTransactions  LeaveTransaction[]
   overtimeEntries    OvertimeEntry[]
   disciplinary       DisciplinaryRecord[]
-  recommendations    Recommendation[]
-  @@index([lastName, firstName])
-  @@index([employmentStatus])
-  @@index([currentPosition])
-  @@index([currentPostingId])
+  recommendations   Recommendation[]
+  @@index([lastName, firstName], map: "employees_name_idx")
+  @@index([employmentStatus], map: "employees_status_idx")
+  @@index([currentPostingId], map: "employees_posting_idx")
+  @@map("employees")
 }
 
 model Department {
-  id        String @id @default(cuid())
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name      String @unique
-  isActive  Boolean @default(true)
+  isActive  Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   employees Employee[]
-  createdAt DateTime @default(now())
+  @@map("departments")
 }
 
 model PostingSite {
-  id             String @id @default(cuid())
-  code           String @unique
-  name           String
-  address        String?
-  city           String?
-  province       String?
-  isHeadOffice   Boolean @default(false)
-  isActive       Boolean @default(true)
-  employees      Employee[] @relation("CurrentPosting")
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String @unique
+  name            String
+  address         String?
+  city            String?
+  province        String?
+  isHeadOffice    Boolean @default(false) @map("is_head_office")
+  isActive        Boolean @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  employees       Employee[] @relation("CurrentPosting")
   previousHistory EmploymentHistory[] @relation("PreviousPosting")
-  newHistory     EmploymentHistory[] @relation("NewPosting")
-  overtime       OvertimeEntry[]
-  createdAt      DateTime @default(now())
-}
-
-model EmploymentHistory {
-  id                   String @id @default(cuid())
-  employeeId           String
-  previousPosition     String?
-  newPosition          String?
-  previousDeployedRole String?
-  newDeployedRole      String?
-  previousPostingId    String?
-  newPostingId         String?
-  effectiveDate        DateTime
-  recordedAt           DateTime @default(now())
-  reason               String
-  managerName          String?
-  notes                String?
-  supportingDocumentId String? @unique
-  recordedById         String
-  employee             Employee @relation(fields: [employeeId], references: [id])
-  previousPosting      PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
-  newPosting           PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
-  supportingDocument   EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id])
-  recordedBy           User @relation("HistoryRecordedBy", fields: [recordedById], references: [id])
-  @@index([employeeId, effectiveDate])
-}
-
-model NextOfKin {
-  id           String @id @default(cuid())
-  employeeId   String
-  fullName     String
-  relationship String
-  phone        String
-  email        String?
-  isPrimary    Boolean @default(false)
-  notes        String?
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-}
-
-model EmployeeDocument {
-  id              String @id @default(cuid())
-  employeeId      String
-  title           String
-  category        DocumentCategory
-  originalName    String
-  storagePath     String @unique
-  mimeType        String
-  sizeBytes       Int
-  description     String?
-  uploadedAt      DateTime @default(now())
-  uploadedById    String
-  employee        Employee @relation(fields: [employeeId], references: [id])
-  uploadedBy      User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
-  historyEvent    EmploymentHistory? @relation("HistoryDocument")
-  leaveForms      LeaveTransaction[]
-  overtimeFiles   OvertimeEntry[]
-  disciplinary    DisciplinaryRecord[]
-  recommendations Recommendation[]
+  newHistory      EmploymentHistory[] @relation("NewPosting")
+  overtime        OvertimeEntry[]
+  @@map("posting_sites")
 }
 
 model WorkingSchedule {
-  id          String @id @default(cuid())
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String @unique
-  workingDays Int[]
-  description String?
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
+  workingDays Int[] @default([1, 2, 3, 4, 5]) @map("working_days")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   employees   Employee[]
+  @@map("working_schedules")
 }
 
 model PublicHoliday {
-  id          String @id @default(cuid())
-  date        DateTime @unique
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date        DateTime @db.Date
   name        String
-  countryCode String @default("ZA")
-  createdAt   DateTime @default(now())
-  @@index([date, countryCode])
+  countryCode String @default("ZA") @map("country_code")
+  @@unique([countryCode, date], map: "public_holidays_country_code_date_key")
+  @@map("public_holidays")
+}
+
+model EmploymentHistory {
+  id                    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId            String @db.Uuid @map("employee_id")
+  previousPosition      String? @map("previous_position")
+  newPosition           String? @map("new_position")
+  previousDeployedRole  String? @map("previous_deployed_role")
+  newDeployedRole       String? @map("new_deployed_role")
+  previousPostingId     String? @db.Uuid @map("previous_posting_id")
+  newPostingId          String? @db.Uuid @map("new_posting_id")
+  effectiveDate         DateTime @db.Date @map("effective_date")
+  recordedAt            DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+  reason                String
+  managerName           String? @map("manager_name")
+  notes                 String?
+  supportingDocumentId  String? @unique(map: "employment_history_supporting_document_id_key") @db.Uuid @map("supporting_document_id")
+  recordedById          String @db.Uuid @map("recorded_by_id")
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  previousPosting       PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  newPosting            PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supportingDocument    EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recordedBy            User @relation("HistoryRecordedBy", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@index([employeeId, effectiveDate], map: "employment_history_employee_idx")
+  @@map("employment_history")
+}
+
+model NextOfKin {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId   String @db.Uuid @map("employee_id")
+  fullName     String @map("full_name")
+  relationship String
+  phone        String?
+  email        String?
+  address      String?
+  isPrimary    Boolean @default(false) @map("is_primary")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("next_of_kin")
 }
 
 model LeavePolicy {
-  id              String @id @default(cuid())
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   category        LeaveCategory
   name            String
-  entitlementDays Decimal? @db.Decimal(7,2)
-  accrualPerMonth Decimal? @db.Decimal(7,3)
-  employmentType  EmploymentType?
-  effectiveFrom   DateTime
-  effectiveTo     DateTime?
-  carryOverLimit  Decimal? @db.Decimal(7,2)
+  entitlementDays Decimal? @db.Decimal(8, 2) @map("entitlement_days")
+  accrualPerMonth Decimal? @db.Decimal(8, 2) @map("accrual_per_month")
+  employmentType  EmploymentType? @map("employment_type")
+  effectiveFrom   DateTime @db.Date @map("effective_from")
+  effectiveTo     DateTime? @db.Date @map("effective_to")
+  carryOverLimit  Decimal? @db.Decimal(8, 2) @map("carry_over_limit")
   eligibility     String?
   notes           String?
-  isActive        Boolean @default(true)
-  createdAt       DateTime @default(now())
-  createdById     String?
-  createdBy       User? @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id])
+  createdById     String @db.Uuid @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy       User @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   transactions    LeaveTransaction[]
-  @@index([category, effectiveFrom, effectiveTo])
+  @@map("leave_policies")
 }
 
 model LeaveTransaction {
-  id                 String @id @default(cuid())
-  employeeId         String
-  policyId           String?
-  category           LeaveCategory
-  type               LeaveTransactionType @default(DEDUCTION)
-  firstLeaveDate     DateTime?
-  lastLeaveDate      DateTime?
-  formSubmissionDate DateTime?
-  capturedAt         DateTime @default(now())
-  days               Decimal @db.Decimal(7,2)
-  balanceBefore      Decimal? @db.Decimal(9,2)
-  balanceAfter       Decimal? @db.Decimal(9,2)
-  reason             String?
-  referenceNumber    String?
-  capturedById       String
-  employee           Employee @relation(fields: [employeeId], references: [id])
-  policy             LeavePolicy? @relation(fields: [policyId], references: [id])
-  capturedBy         User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
-  documents          EmployeeDocument[]
-  @@index([employeeId, category, capturedAt])
-  @@unique([employeeId, category, referenceNumber])
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId        String @db.Uuid @map("employee_id")
+  category          LeaveCategory
+  transactionType   LeaveTransactionType @map("transaction_type")
+  days              Decimal @db.Decimal(8, 2)
+  balanceAfter      Decimal? @db.Decimal(8, 2) @map("balance_after")
+  firstLeaveDate    DateTime? @db.Date @map("first_leave_date")
+  lastLeaveDate     DateTime? @db.Date @map("last_leave_date")
+  referenceNumber   String? @map("reference_number")
+  paperFormDate     DateTime? @db.Date @map("paper_form_date")
+  policyId          String? @db.Uuid @map("policy_id")
+  notes             String?
+  reversesId        String? @db.Uuid @map("reverses_id")
+  capturedById      String @db.Uuid @map("captured_by_id")
+  capturedAt        DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  policy            LeavePolicy? @relation(fields: [policyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  capturedBy        User @relation("LeaveCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reverses          LeaveTransaction? @relation("LeaveReversals", fields: [reversesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reversedBy        LeaveTransaction[] @relation("LeaveReversals")
+  documents         EmployeeDocument[] @relation("LeaveDocuments")
+  @@index([employeeId, category, capturedAt], map: "leave_tx_employee_idx")
+  @@unique([employeeId, category, referenceNumber], map: "leave_transactions_employee_id_category_reference_number_key")
+  @@map("leave_transactions")
 }
 
 model OvertimeEntry {
-  id             String @id @default(cuid())
-  employeeId     String
-  postingSiteId  String?
-  workDate       DateTime
-  startTime      String
-  finishTime     String
-  totalHours     Decimal @db.Decimal(6,2)
-  confirmedBy    String
-  capturedById   String
-  notes          String?
-  createdAt      DateTime @default(now())
-  employee       Employee @relation(fields: [employeeId], references: [id])
-  postingSite    PostingSite? @relation(fields: [postingSiteId], references: [id])
-  capturedBy     User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id])
-  documents      EmployeeDocument[]
-  @@index([workDate, employeeId])
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId   String @db.Uuid @map("employee_id")
+  postingSiteId String? @db.Uuid @map("posting_site_id")
+  workDate     DateTime @db.Date @map("work_date")
+  startTime    String @map("start_time")
+  finishTime   String @map("finish_time")
+  totalHours   Decimal @db.Decimal(6, 2) @map("total_hours")
+  confirmedBy  String @map("confirmed_by")
+  capturedById String @db.Uuid @map("captured_by_id")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  postingSite  PostingSite? @relation(fields: [postingSiteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  capturedBy   User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documents    EmployeeDocument[] @relation("OvertimeDocuments")
+  @@index([workDate, employeeId], map: "overtime_work_date_idx")
+  @@map("overtime_entries")
 }
 
 model DisciplinaryRecord {
-  id            String @id @default(cuid())
-  employeeId    String
-  hearingDate   DateTime
-  matter        String
-  finding       String?
-  outcome       DisciplinaryOutcome @default(PENDING)
-  sanction      String?
-  notes         String?
-  capturedById  String
-  createdAt     DateTime @default(now())
-  employee      Employee @relation(fields: [employeeId], references: [id])
-  capturedBy    User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id])
-  documents     EmployeeDocument[]
-  @@index([employeeId, hearingDate])
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId   String @db.Uuid @map("employee_id")
+  hearingDate  DateTime @db.Date @map("hearing_date")
+  matter       String
+  finding      String?
+  outcome      DisciplinaryOutcome @default(PENDING)
+  sanction     String?
+  notes        String?
+  capturedById String @db.Uuid @map("captured_by_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  capturedBy   User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documents    EmployeeDocument[] @relation("DisciplinaryDocuments")
+  @@index([employeeId, hearingDate], map: "disciplinary_employee_idx")
+  @@map("disciplinary_records")
 }
 
 model Recommendation {
-  id          String @id @default(cuid())
-  employeeId  String
-  date        DateTime
-  type        RecommendationType
-  description String
-  submittedBy String
-  capturedById String
-  comments    String?
-  createdAt   DateTime @default(now())
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  capturedBy  User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id])
-  documents   EmployeeDocument[]
-  @@index([employeeId, date])
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId   String @db.Uuid @map("employee_id")
+  date         DateTime @db.Date
+  type         RecommendationType
+  description  String
+  submittedBy  String @map("submitted_by")
+  capturedById String @db.Uuid @map("captured_by_id")
+  comments     String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  capturedBy   User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documents    EmployeeDocument[] @relation("RecommendationDocuments")
+  @@index([employeeId, date], map: "recommendations_employee_idx")
+  @@map("recommendations")
+}
+
+model EmployeeDocument {
+  id                    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId            String @db.Uuid @map("employee_id")
+  category              DocumentCategory
+  title                 String
+  storagePath           String @map("storage_path")
+  mimeType              String @map("mime_type")
+  sizeBytes             Int @map("size_bytes")
+  uploadedById          String @db.Uuid @map("uploaded_by_id")
+  leaveTransactionId    String? @db.Uuid @map("leave_transaction_id")
+  overtimeEntryId       String? @db.Uuid @map("overtime_entry_id")
+  disciplinaryRecordId  String? @db.Uuid @map("disciplinary_record_id")
+  recommendationId      String? @db.Uuid @map("recommendation_id")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploadedBy            User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  historyEvent          EmploymentHistory? @relation("HistoryDocument")
+  leaveTransaction      LeaveTransaction? @relation("LeaveDocuments", fields: [leaveTransactionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_leave_fk")
+  overtimeEntry         OvertimeEntry? @relation("OvertimeDocuments", fields: [overtimeEntryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_overtime_fk")
+  disciplinaryRecord    DisciplinaryRecord? @relation("DisciplinaryDocuments", fields: [disciplinaryRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_disciplinary_fk")
+  recommendation        Recommendation? @relation("RecommendationDocuments", fields: [recommendationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_recommendation_fk")
+  @@index([employeeId, category], map: "employee_documents_employee_idx")
+  @@map("employee_documents")
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  action      String
-  entityType  String
-  entityId    String?
-  beforeData  Json?
-  afterData   Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-  user        User? @relation(fields: [userId], references: [id])
-  @@index([entityType, entityId, createdAt])
-  @@index([userId, createdAt])
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String? @db.Uuid @map("user_id")
+  action     String
+  entityType String @map("entity_type")
+  entityId   String? @map("entity_id")
+  beforeData Json? @map("before_data")
+  afterData  Json? @map("after_data")
+  ipAddress  String? @map("ip_address")
+  userAgent  String? @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User? @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@index([entityType, entityId, createdAt], map: "audit_entity_idx")
+  @@index([userId, createdAt], map: "audit_user_idx")
+  @@map("audit_logs")
 }

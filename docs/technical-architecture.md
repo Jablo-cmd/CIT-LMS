@@ -1,20 +1,19 @@
 # CIT-LMS Technical Architecture
 
-**Status:** Technology direction confirmed; detailed implementation decisions will be made during scaffolding.
+**Status:** Supabase platform architecture accepted; Prisma and API schema reconciliation implemented on `feat/supabase-platform-integration`; CI verification and live integration gates remain.
 
 ## 1. Confirmed technology direction
 
 - **Language:** TypeScript across frontend and backend.
 - **Frontend:** Next.js.
-- **Backend:** Node.js, implemented as a separate API service.
-- **API style:** REST.
-- **Database:** PostgreSQL, running locally during initial development.
-- **Initial file storage:** Private local storage outside publicly served directories.
-- **Styling:** Tailwind CSS is the proposed UI styling approach.
+- **Application backend:** Node.js + Express REST API.
+- **Database:** Supabase-managed PostgreSQL.
+- **Authentication:** Supabase Auth, with application roles/active status stored in `public.profiles`.
+- **File storage:** Existing private Supabase Storage bucket `cit-lms-documents`.
+- **ORM:** Prisma, mapped to the existing database schema; it must not create parallel tables.
+- **Hosting:** Vercel for the Next.js frontend and Node.js API.
 
-The frontend and backend will be separate applications in one repository. This keeps the user interface separate from business rules, data access, authentication, and permission enforcement.
-
-## 2. Proposed repository structure
+## 2. Repository structure
 
 ```
 CIT-LMS/
@@ -23,22 +22,12 @@ CIT-LMS/
 │   └── api/                 # Node.js + TypeScript backend
 ├── docs/
 │   ├── functional-specification.md
-│   └── technical-architecture.md
-├── .gitignore
-└── README.md
+│   ├── technical-architecture.md
+│   └── ARCHITECTURE_DECISION.md
+└── package.json
 ```
 
-The backend framework and database access library will be selected during scaffolding. A lightweight Express API and Prisma ORM are suitable defaults, subject to compatibility checks at implementation time.
-
-## 3. Delivery constraints
-
-- No paid cloud subscriptions or infrastructure are required for initial development.
-- Build and run locally first.
-- Do not introduce a hosted database or file-storage dependency during the initial build.
-- Use synthetic sample records only.
-- Keep deployment decisions separate from local development so hosting can be selected later based on cost, privacy, backups, and operational needs.
-
-## 4. Application responsibilities
+## 3. Application responsibilities
 
 ### Next.js frontend
 - Responsive browser-based interface.
@@ -46,54 +35,55 @@ The backend framework and database access library will be selected during scaffo
 - HR capture forms and reports.
 - Role-aware navigation and user experience.
 - Communicates with the backend through the REST API.
+- Never receives the Supabase service-role key.
 
 ### Node.js backend
-- Authentication and session management.
-- Server-side role and permission enforcement.
-- Business rules and validation.
-- Employee, employment-history, posting, leave, overtime, disciplinary, and recommendation services.
-- Leave-day calculation and balance transaction handling.
-- Secure document upload and retrieval.
-- Audit history and reporting endpoints.
-- Database access and migrations.
+- Validates Supabase Auth sessions and refreshes expired access tokens.
+- Loads application identity, role, and active status from `profiles`.
+- Enforces server-side authorization; hiding a button is never access control.
+- Owns business rules, validation, employee/leave/overtime/history workflows, reporting, and audit events.
+- Accesses PostgreSQL and private Storage using server-side credentials.
+- Uses the Supabase Auth Admin API for user provisioning and password administration.
 
-The backend is the authority for permissions and business rules. Hiding a button in the frontend is never treated as access control.
+### Supabase platform
+- PostgreSQL is the canonical application database.
+- Auth is the identity and credential provider.
+- Private Storage holds employee documents and photos.
+- RLS is enabled on the existing public application tables and protects direct Data API access. The API uses a trusted server-side PostgreSQL connection and privileged Storage key, so route-level authorization is mandatory and RLS is not assumed to be the API authorization boundary.
 
-## 5. Data design principles
+## 4. Data design principles
 
-- Use stable internal IDs for relationships; employee number remains a unique CIT-assigned identifier.
+- Preserve the existing production schema and user identities.
+- Use UUIDs for primary/foreign keys where the existing schema defines UUIDs.
+- Map Prisma models, scalar fields, enums, and relations to the existing snake_case database.
 - Preserve immutable original hire date.
 - Model position appointments and posting assignments as dated history records.
-- Attach mandatory appointment/transfer evidence to the relevant history event.
-- Keep leave transactions immutable once posted; use adjustment/reversal entries.
-- Store policy versions/effective dates so later policy changes do not rewrite prior calculations.
-- Separate disciplinary records from recommendations.
+- Keep leave transactions auditable and use adjustments/reversals rather than rewriting ledger history.
 - Record actor and timestamps for important create/update actions.
-- Enforce permissions on the server.
 
-## 6. Security and privacy
+## 5. Security and privacy
 
-- Private repository; no real personal data in Git.
-- Never commit secrets, passwords, tokens, production database dumps, or uploaded employee files.
-- Keep uploaded files outside publicly served static directories.
-- Apply least-privilege access and sensitive-module restrictions.
-- Validate file type and size; generate safe storage names; prevent path traversal.
-- Use secure password hashing and session handling.
-- Maintain audit events for sensitive access and important changes where appropriate.
-- Define backup encryption, retention, restore testing, and incident procedures before production.
+- Never commit secrets, passwords, tokens, production database dumps, or employee files.
+- Store the service-role key only in server-side environment configuration.
+- Use HttpOnly cookies for API sessions, HTTPS in production, strict CORS and CSRF protections.
+- Do not authorize from user-editable Auth metadata.
+- Keep the document bucket private; use server-side authorization and short-lived signed URLs.
+- Enforce least privilege and test role boundaries.
+- Define encrypted backups, retention, restore testing, and incident procedures before production.
 
-## 7. Local development
+## 6. Database and migration safety
 
-Initial development should be reproducible on a developer workstation. Provide documented setup commands, environment-variable examples without secrets, database migrations, and synthetic seed data. Local data should be disposable and clearly marked as test data.
+The existing Supabase project is authoritative. Its current schema differs from the original repository Prisma schema. The initial repository migration would create a conflicting schema and must not be deployed to production.
 
-## 8. Deployment gate
+The branch maps Prisma models, fields, enums, numeric precision, indexes, and relations to the existing schema. API route queries have been updated accordingly. CI runs `prisma db push` only against its disposable PostgreSQL service. The old incompatible initial migration is archived outside the active migration path, and the seed script requires explicit opt-in while refusing production/Vercel execution. No production migrations, `db push`, seed, reset, or data modifications are authorized. A production baseline/additive migration plan requires separate review and explicit approval.
 
-Do not connect real CIT employee data until CIT has approved the requirements and leave rules, and the selected deployment provides:
-- Private application access.
-- Secure database and document storage.
-- HTTPS and secure authentication.
-- Automated backups and tested restoration.
-- Monitoring and a defined maintenance owner.
-- Appropriate privacy, access, and retention controls.
+## 7. Deployment gate
 
-Free hosting tiers may be evaluated later, but they must not be assumed suitable for sensitive HR data merely because they are free.
+Before production release:
+- Confirm CI Prisma validation, typecheck, tests, build, and disposable database smoke test.
+- Run Prisma validation/generation, TypeScript checks, unit/integration tests, and production build.
+- Configure the runtime database pooler DSN and server-side Supabase keys in Vercel.
+- Resolve or explicitly accept the existing Supabase security findings documented in `docs/PRODUCTION_SECURITY_REVIEW.md`.
+- Verify Auth, roles, CSRF/CORS, RLS, and private Storage in an isolated preview environment.
+- Confirm backups and tested restoration.
+- Obtain explicit approval for production release and any schema migration.

@@ -8,6 +8,7 @@ import { config } from "../config.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { persistPrivateObject } from "../services/document-persistence.js";
+import { toDocumentView } from "../services/document-view.js";
 import { createSignedDownloadUrl, getObject, removeObject, saveObject } from "../services/document-storage.js";
 
 export const documentsRouter = Router();
@@ -39,12 +40,12 @@ documentsRouter.get("/", allStaff, async (req, res, next) => {
       where: {
         ...(employeeId ? { employeeId } : {}),
         ...(category ? { category: category as never } : {}),
-        ...(isAdmin ? { category: { not: "IDENTITY_PERSONAL" }, disciplinary: { none: {} } } : {})
+        ...(isAdmin ? { AND: [{ category: { not: "IDENTITY_PERSONAL" } }, { disciplinaryRecord: { is: null } }] } : {})
       },
-      select: { id:true, employeeId:true, title:true, category:true, originalName:true, mimeType:true, sizeBytes:true, description:true, uploadedAt:true, employee:{select:{employeeNumber:true,firstName:true,lastName:true}}, uploadedBy:{select:{fullName:true}} },
-      orderBy: { uploadedAt:"desc" }, take:500
+      select: { id:true, employeeId:true, title:true, category:true,  mimeType:true, sizeBytes:true,  createdAt:true, employee:{select:{employeeNumber:true,firstName:true,lastName:true}}, uploadedBy:{select:{fullName:true}} },
+      orderBy: { createdAt:"desc" }, take:500
     });
-    return res.json({items});
+    return res.json({items: items.map(toDocumentView)});
   } catch(e){return next(e);}
 });
 
@@ -54,12 +55,12 @@ documentsRouter.get("/employee/:employeeId", allStaff, async (req, res, next) =>
     const items = await prisma.employeeDocument.findMany({
       where: {
         employeeId: String(req.params.employeeId),
-        ...(isHr ? {} : { category: { not: "IDENTITY_PERSONAL" }, disciplinary: { none: {} } })
+        ...(isHr ? {} : { category: { not: "IDENTITY_PERSONAL" }, disciplinaryRecord: { is: null } })
       },
-      select: { id: true, title: true, category: true, originalName: true, mimeType: true, sizeBytes: true, description: true, uploadedAt: true, uploadedBy: { select: { fullName: true } } },
-      orderBy: { uploadedAt: "desc" }
+      select: { id: true, title: true, category: true,  mimeType: true, sizeBytes: true,  createdAt: true, uploadedBy: { select: { fullName: true } } },
+      orderBy: { createdAt: "desc" }
     });
-    return res.json({ items });
+    return res.json({ items: items.map(toDocumentView) });
   } catch (e) { return next(e); }
 });
 
@@ -70,14 +71,12 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
     const input = z.object({
       title: z.string().trim().min(2).max(150),
       category: z.enum(["ACADEMIC_QUALIFICATION","PROFESSIONAL_CERTIFICATE","TRAINING_CERTIFICATE","IDENTITY_PERSONAL","EMPLOYMENT","OTHER"]),
-      description: z.string().max(2000).optional()
     }).parse(req.body);
     if (req.auth!.role === "ADMIN_PERSONNEL" && isSensitiveCategory(input.category)) return res.status(403).json({ error: "Only HR or the Company Owner may upload identity and personal documents" });
     const employee = await prisma.employee.findUnique({ where: { id: String(req.params.employeeId) }, select: { id: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const extension = path.extname(uploadedFile.originalname).toLowerCase();
     if (!allowedExtensions.has(extension) || !validSignature(uploadedFile.buffer, extension)) return res.status(415).json({ error: "File content does not match an allowed PDF, Word, JPG or PNG format" });
-    const safeOriginalName = path.basename(uploadedFile.originalname).replace(/[\u0000-\u001f]/g, "").slice(0, 180);
     const storageKey = `${employee.id}/${randomUUID()}${extension}`;
     const mimeType = mimeTypeFor(extension);
     let documentId: string | undefined;
@@ -87,15 +86,14 @@ documentsRouter.post("/:employeeId", allStaff, upload.single("file"), async (req
         const created = await prisma.employeeDocument.create({
         data: {
           employeeId: employee.id, title: input.title, category: input.category,
-          originalName: safeOriginalName, storagePath: storageKey,
-          mimeType, sizeBytes: uploadedFile.size,
-          description: input.description, uploadedById: req.auth!.userId
+          storagePath: storageKey, mimeType, sizeBytes: uploadedFile.size,
+          uploadedById: req.auth!.userId
         },
-        select: { id: true, title: true, category: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true }
+        select: { id: true, title: true, category: true,  mimeType: true, sizeBytes: true, createdAt: true }
       });
         documentId = created.id;
         await writeAudit(req, "UPLOAD", "EmployeeDocument", created.id, undefined, created);
-        return created;
+        return toDocumentView(created);
       },
       rollback: async () => {
         if (documentId) await prisma.employeeDocument.delete({ where: { id: documentId } });
@@ -121,13 +119,14 @@ documentsRouter.get("/photos/:employeeId", allStaff, async (req, res, next) => {
 
 documentsRouter.get("/:id/download", allStaff, async (req, res, next) => {
   try {
-    const document = await prisma.employeeDocument.findUnique({ where: { id: String(req.params.id) }, include: { disciplinary: { select: { id: true } } } });
+    const document = await prisma.employeeDocument.findUnique({ where: { id: String(req.params.id) }, include: { disciplinaryRecord: { select: { id: true } } } });
     if (!document) return res.status(404).json({ error: "Document not found" });
-    if (req.auth!.role === "ADMIN_PERSONNEL" && (isSensitiveCategory(document.category) || document.disciplinary.length > 0)) return res.status(403).json({ error: "You do not have permission to access this document" });
-    const signedUrl = await createSignedDownloadUrl(document.storagePath, document.originalName);
+    if (req.auth!.role === "ADMIN_PERSONNEL" && (isSensitiveCategory(document.category) || !!document.disciplinaryRecord)) return res.status(403).json({ error: "You do not have permission to access this document" });
+    const downloadName = toDocumentView(document).originalName;
+    const signedUrl = await createSignedDownloadUrl(document.storagePath, downloadName);
     if (signedUrl) return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).redirect(302, signedUrl);
     const stored = await getObject(document.storagePath);
-    return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).type(document.mimeType).attachment(document.originalName).send(stored.body);
+    return res.set({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).type(document.mimeType).attachment(downloadName).send(stored.body);
   } catch (e) { return next(e); }
 });
 

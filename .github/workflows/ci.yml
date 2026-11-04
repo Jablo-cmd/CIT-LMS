@@ -43,7 +43,6 @@ jobs:
     env:
       PORT: 4000
       DATABASE_URL: postgresql://cit_lms:ci_password@localhost:5432/cit_lms
-      JWT_ACCESS_SECRET: ci-only-secret-value-long-enough-for-validation-123456
       WEB_ORIGIN: https://cit-lms-ci.invalid
       COOKIE_SECURE: "true"
       STORAGE_DRIVER: local
@@ -65,10 +64,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: Apply database migrations
-        run: cd apps/api && npx prisma migrate deploy
-      - name: Seed reference data
-        run: npm run db:seed --workspace @cit-lms/api
+      - name: Create disposable CI schema from the reconciled Prisma models
+        run: cd apps/api && npx prisma db push
       - name: Start production API and check health
         env:
           NODE_ENV: test

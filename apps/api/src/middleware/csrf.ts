@@ -6,9 +6,8 @@ const trustedOrigin = new URL(config.WEB_ORIGIN).origin;
 
 export function protectCookieMutations(req: Request, res: Response, next: NextFunction) {
   if (safeMethods.has(req.method)) return next();
-  if (req.get("sec-fetch-site") === "cross-site") return res.status(403).json({ error: "Cross-site request rejected" });
-
   const origin = req.get("origin");
+  if (req.get("sec-fetch-site") === "cross-site" && !origin) return res.status(403).json({ error: "Cross-site request origin is required" });
   const referer = req.get("referer");
   if (!origin && !referer) return res.status(403).json({ error: "Request origin is required" });
 

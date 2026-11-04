@@ -1,3 +1,7 @@
+-- ARCHIVED LEGACY MIGRATION: NOT SAFE FOR THE EXISTING CIT-LMS SUPABASE DATABASE.
+-- This migration describes the original repository schema and is retained only for historical reference.
+-- Do not apply it to production or restore it under prisma/migrations.
+
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 

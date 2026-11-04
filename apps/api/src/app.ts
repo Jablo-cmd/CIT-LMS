@@ -3,9 +3,9 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { ZodError } from "zod";
-import { config } from "./config.js";
+import { config, isPreviewSafeMode } from "./config.js";
 import { prisma } from "./db.js";
 import { authRouter } from "./routes/auth.js";
 import { employeesRouter } from "./routes/employees.js";
@@ -22,35 +22,55 @@ import { auditRouter } from "./routes/audit.js";
 import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
 
+const helmetMiddleware = helmet as unknown as () => express.RequestHandler;
+
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
-app.use(helmet());
+app.use(helmetMiddleware());
 app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
-app.use("/api", protectCookieMutations);
-app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
-app.use("/api/auth/change-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
-app.use("/api/users/:id/reset-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
-app.get("/api/health", async (_req, res) => {
-  try { await prisma.$queryRaw`SELECT 1`; return res.json({ status: "ok", database: "connected", service: "cit-lms-api" }); }
-  catch { return res.status(503).json({ status: "unavailable", database: "unavailable", service: "cit-lms-api" }); }
-});
-app.use("/api/auth", authRouter);
-app.use("/api", requireAuth);
-app.use("/api/users", usersRouter);
-app.use("/api/employees", employeesRouter);
-app.use("/api/leave", leaveRouter);
-app.use("/api/postings", postingsRouter);
-app.use("/api/overtime", overtimeRouter);
-app.use("/api/disciplinary", disciplinaryRouter);
-app.use("/api/recommendations", recommendationsRouter);
-app.use("/api/documents", documentsRouter);
-app.use("/api/calendar", calendarRouter);
-app.use("/api/reports", reportsRouter);
-app.use("/api/audit", auditRouter);
+
+if (isPreviewSafeMode) {
+  // Preview is deliberately isolated: no auth, business, database, or document routes.
+  app.get("/api/health", (_req, res) => res.status(200).json({
+    status: "restricted",
+    database: "disabled",
+    storage: "disabled",
+    environment: "preview",
+    service: "cit-lms-api"
+  }));
+  app.use((_req, res) => res.status(404).json({ error: "This endpoint is disabled in restricted Preview mode" }));
+} else {
+  app.use("/api", protectCookieMutations);
+  app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
+  app.use("/api/auth/change-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
+  app.use("/api/users/:id/reset-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return res.json({ status: "ok", database: "connected", service: "cit-lms-api" });
+    } catch {
+      return res.status(503).json({ status: "unavailable", database: "unavailable", service: "cit-lms-api" });
+    }
+  });
+  app.use("/api/auth", authRouter);
+  app.use("/api", requireAuth);
+  app.use("/api/users", usersRouter);
+  app.use("/api/employees", employeesRouter);
+  app.use("/api/leave", leaveRouter);
+  app.use("/api/postings", postingsRouter);
+  app.use("/api/overtime", overtimeRouter);
+  app.use("/api/disciplinary", disciplinaryRouter);
+  app.use("/api/recommendations", recommendationsRouter);
+  app.use("/api/documents", documentsRouter);
+  app.use("/api/calendar", calendarRouter);
+  app.use("/api/reports", reportsRouter);
+  app.use("/api/audit", auditRouter);
+}
+
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof ZodError) return res.status(400).json({ error: "Validation failed", details: err.issues });
   if (typeof err === "object" && err !== null && "code" in err) {
