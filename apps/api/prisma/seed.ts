@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+if (process.env.CIT_LMS_ALLOW_SEED !== "true" || process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+  throw new Error("Seeding is disabled by default. Set CIT_LMS_ALLOW_SEED=true only for an isolated development database; never seed production.");
+}
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL must be configured before seeding");
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
