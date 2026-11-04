@@ -44,7 +44,7 @@ postingsRouter.get("/history/:employeeId", allStaff, async (req, res, next) => {
       include: { previousPosting: true, newPosting: true, supportingDocument: { select: { id:true, title:true, category:true, mimeType:true, createdAt:true } }, recordedBy: { select: { fullName: true } } },
       orderBy: [{ effectiveDate: "desc" }, { recordedAt: "desc" }]
     });
-    return res.json({ items: items.map(item => ({ ...item, supportingDocument: item.supportingDocument ? toDocumentView(item.supportingDocument) : null })) });
+    return res.json({ items: items.map(item => ({ ...item, supportingDocument: item.supportingDocument && (req.auth!.role !== "ADMIN_PERSONNEL" || item.supportingDocument.category !== "IDENTITY_PERSONAL") ? toDocumentView(item.supportingDocument) : null })) });
   } catch (e) { return next(e); }
 });
 
