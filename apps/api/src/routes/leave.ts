@@ -25,7 +25,8 @@ const policySchema = z.object({
 leaveRouter.get("/policies", hrOnly, async (_req, res, next) => {
   try {
     const policies = await prisma.leavePolicy.findMany({ orderBy: [{ category: "asc" }, { effectiveFrom: "desc" }] });
-    return res.json({ items: policies });
+    const today = new Date();
+    return res.json({ items: policies.map(policy => ({ ...policy, isActive: !policy.effectiveTo || policy.effectiveTo >= today })) });
   } catch (e) { return next(e); }
 });
 
@@ -224,7 +225,7 @@ leaveRouter.get("/transactions", allStaff, async (req, res, next) => {
       include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } } },
       orderBy: { capturedAt: "desc" }, take: 500
     });
-    return res.json({ items });
+    return res.json({ items: items.map(item => ({ ...item, type: item.transactionType, reason: item.notes })) });
   } catch (e) { return next(e); }
 });
 
@@ -235,7 +236,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       category: z.enum(["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY_PARENTAL","UNPAID","STUDY","OTHER"]),
       firstLeaveDate: z.coerce.date(),
       lastLeaveDate: z.coerce.date(),
-      paperFormDate: z.coerce.date().optional(),
+      formSubmissionDate: z.coerce.date().optional(),
       reason: z.string().max(2000).optional(),
       referenceNumber: z.string().max(100).optional(),
       supportingDocumentId: z.string().min(1)
@@ -265,7 +266,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
         data: {
           employeeId: input.employeeId, policyId: policy?.id, category: input.category,
           transactionType: "DEDUCTION", firstLeaveDate: input.firstLeaveDate, lastLeaveDate: input.lastLeaveDate,
-          paperFormDate: input.paperFormDate, days,
+          paperFormDate: input.formSubmissionDate, days,
           balanceAfter: input.category === "UNPAID" ? null : balance - days, notes: input.reason, referenceNumber: input.referenceNumber,
           capturedById: req.auth!.userId
         }
@@ -280,7 +281,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "CREATE", "LeaveTransaction", transaction.id, undefined, transaction);
-    return res.status(201).json({ transaction: { ...transaction, documents: transaction.documents.map(toDocumentView) }, calculatedWorkingDays: days });
+    return res.status(201).json({ transaction: { ...transaction, type: transaction.transactionType, reason: transaction.notes, documents: transaction.documents.map(toDocumentView) }, calculatedWorkingDays: days });
   } catch (e) {
     if (e instanceof Error && e.message === "INSUFFICIENT_LEAVE_BALANCE") return res.status(409).json({ error: "Insufficient leave balance. Record an authorised opening balance or adjustment first." });
     return next(e);
