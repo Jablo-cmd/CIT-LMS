@@ -54,13 +54,13 @@ async function main() {
 
   await prisma.workingSchedule.upsert({
     where: { name: "Standard Monday-Friday" }, update: {},
-    create: { name: "Standard Monday-Friday", workingDays: [1,2,3,4,5], description: "Initial default schedule; confirm employee rosters with CIT before production." }
+    create: { name: "Standard Monday-Friday", workingDays: [1,2,3,4,5], notes: "Initial default schedule; confirm employee rosters with CIT before production." }
   });
 
   for (let year = 2025; year <= 2035; year++) {
     for (const holiday of southAfricanHolidays(year)) {
       await prisma.publicHoliday.upsert({
-        where: { date: holiday.date }, update: { name: holiday.name },
+        where: { countryCode_date: { countryCode: "ZA", date: holiday.date } }, update: { name: holiday.name },
         create: { date: holiday.date, name: holiday.name, countryCode: "ZA" }
       });
     }
