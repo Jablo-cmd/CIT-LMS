@@ -28,7 +28,8 @@ leaveRouter.get("/policies", hrOnly, async (_req, res, next) => {
   try {
     const policies = await prisma.leavePolicy.findMany({ orderBy: [{ category: "asc" }, { effectiveFrom: "desc" }] });
     const today = new Date();
-    return res.json({ items: policies.map(policy => ({ ...policy, isActive: !policy.effectiveTo || policy.effectiveTo >= today })) });
+    today.setUTCHours(0, 0, 0, 0);
+    return res.json({ items: policies.map(policy => ({ ...policy, isActive: policy.effectiveFrom <= today && (!policy.effectiveTo || policy.effectiveTo >= today) })) });
   } catch (e) { return next(e); }
 });
 
