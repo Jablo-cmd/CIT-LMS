@@ -3,7 +3,7 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { ZodError } from "zod";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
@@ -22,10 +22,12 @@ import { auditRouter } from "./routes/audit.js";
 import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
 
+const helmetMiddleware = helmet as unknown as () => express.RequestHandler;
+
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
-app.use(helmet());
+app.use(helmetMiddleware());
 app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
