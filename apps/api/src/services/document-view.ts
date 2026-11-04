@@ -18,6 +18,7 @@ export function toDocumentView<T extends { title: string; mimeType: string; crea
     .replaceAll("/", "-")
     .replaceAll("\\", "-")
     .replace(/[\u0000-\u001f]/g, "-")
+    .replace(/-+/g, "-")
     .trim()
     .slice(0, 120) || "employee-document";
   const downloadName = Object.values(extensionByMimeType).some(ext => safeTitle.toLowerCase().endsWith(ext)) ? safeTitle : safeTitle + extension;
