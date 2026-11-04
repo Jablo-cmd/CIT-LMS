@@ -65,7 +65,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Create disposable CI schema from the reconciled Prisma models
-        run: cd apps/api && npx prisma db push --skip-generate
+        run: cd apps/api && npx prisma db push
       - name: Start production API and check health
         env:
           NODE_ENV: test
