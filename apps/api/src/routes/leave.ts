@@ -247,7 +247,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
     if (days < 1) return res.status(400).json({ error: "The selected dates contain no scheduled working days" });
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
-    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
+    const supportingDocument = await prisma.employeeDocument.findFirst({ where: { id: input.supportingDocumentId, employeeId: employee.id, category: { not: "IDENTITY_PERSONAL" }, leaveTransactionId: null, overtimeEntryId: null, disciplinaryRecordId: null, recommendationId: null, historyEvent: { is: null } } });
     if (!supportingDocument) return res.status(400).json({ error: "A supporting leave form belonging to this employee is required" });
     const policyCandidates = input.category === "UNPAID" ? [] : await prisma.leavePolicy.findMany({
       where: {
