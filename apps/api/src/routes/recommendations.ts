@@ -34,7 +34,7 @@ recommendationsRouter.post("/", async (req, res, next) => {
       description: z.string().trim().min(5).max(3000),
       submittedBy: z.string().trim().min(2).max(120),
       comments: z.string().max(3000).optional(),
-      documentIds: z.array(z.string().uuid()).max(10).optional()
+      documentIds: z.array(z.string().uuid()).max(10).refine(ids => new Set(ids).size === ids.length, "Document IDs must be unique").optional()
     }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId }, select: { id: true } });
     if (!employee) return res.status(404).json({ error: "Employee not found" });
