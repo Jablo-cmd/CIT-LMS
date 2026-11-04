@@ -120,7 +120,7 @@ const updateSchema = z.object({
   addressProvince: z.string().max(120).nullable().optional(),
   addressPostalCode: z.string().max(20).nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
-  email: z.string().email().max(254).nullable().optional(),
+  email: z.string().email().max(254).nullable().optional().or(z.literal("")),
   employmentType: z.enum(["PERMANENT","CONTRACT"]).optional(),
   employmentStatus: z.enum(["ACTIVE","SUSPENDED","RESIGNED","DISMISSED","DECEASED"]).optional(),
   contractStartDate: z.coerce.date().nullable().optional(),
@@ -144,12 +144,12 @@ employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
 
 employeesRouter.post("/:id/next-of-kin", hrOnly, async (req, res, next) => {
   try {
-    const input = z.object({ fullName:z.string().trim().min(2).max(120), relationship:z.string().trim().min(2).max(80), phone:z.string().trim().min(5).max(40).optional(), email:z.string().email().optional(), address:z.string().max(1000).optional(), isPrimary:z.boolean().default(false) }).parse(req.body);
+    const input = z.object({ fullName:z.string().trim().min(2).max(120), relationship:z.string().trim().min(2).max(80), phone:z.string().trim().min(5).max(40).optional(), email:z.string().email().optional().or(z.literal("")), address:z.string().max(1000).optional(), isPrimary:z.boolean().default(false) }).parse(req.body);
     const employee = await prisma.employee.findUnique({ where: { id:String(req.params.id) }, select:{ id:true } });
     if (!employee) return res.status(404).json({ error:"Employee not found" });
     const contact = await prisma.$transaction(async tx => {
       if (input.isPrimary) await tx.nextOfKin.updateMany({ where:{ employeeId:employee.id, isPrimary:true }, data:{ isPrimary:false } });
-      return tx.nextOfKin.create({ data:{ ...input, employeeId:employee.id } });
+      return tx.nextOfKin.create({ data:{ ...input, email: input.email || null, employeeId:employee.id } });
     });
     await writeAudit(req,"CREATE","NextOfKin",contact.id,undefined,contact);
     return res.status(201).json({ contact });
