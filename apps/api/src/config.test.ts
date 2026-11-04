@@ -74,4 +74,21 @@ describe("production configuration", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.MAX_UPLOAD_BYTES).toBe(4_194_304);
   });
+  
+  it("allows Preview configuration without any database or privileged storage credentials", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const result = configSchema.safeParse({ NODE_ENV: "production" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.DATABASE_URL).toBeUndefined();
+      expect(result.data.STORAGE_DRIVER).toBe("local");
+    }
+  });
+
+  it("still requires DATABASE_URL outside Preview", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const result = configSchema.safeParse({ NODE_ENV: "production", WEB_ORIGIN: "https://cit-lms.example", COOKIE_SECURE: "true", STORAGE_DRIVER: "supabase", SUPABASE_URL: "https://cit-lms.supabase.co", SUPABASE_ANON_KEY: "test-anon-key", SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.some(issue => issue.path.includes("DATABASE_URL"))).toBe(true);
+  });
 });
