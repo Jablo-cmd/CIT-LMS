@@ -224,7 +224,7 @@ leaveRouter.get("/transactions", allStaff, async (req, res, next) => {
       include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } } },
       orderBy: { capturedAt: "desc" }, take: 500
     });
-    return res.json({ items: items.map(item => ({ ...item, documents: "documents" in item ? item.documents.map(toDocumentView) : undefined })) });
+    return res.json({ items });
   } catch (e) { return next(e); }
 });
 
@@ -276,7 +276,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       });
       return tx.leaveTransaction.findUniqueOrThrow({
         where: { id: created.id },
-        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, storagePath:true, mimeType:true, createdAt:true } } }
+        include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, category:true, mimeType:true, storagePath:true, mimeType:true, createdAt:true } } }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "CREATE", "LeaveTransaction", transaction.id, undefined, transaction);
