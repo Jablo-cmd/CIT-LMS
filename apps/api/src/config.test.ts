@@ -4,7 +4,6 @@ import { configSchema } from "./config.js";
 const baseConfig = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://cit_lms:password@db.example.test:5432/cit_lms",
-  JWT_ACCESS_SECRET: "test-only-secret-that-is-long-enough"
 };
 
 afterEach(() => vi.unstubAllEnvs());
