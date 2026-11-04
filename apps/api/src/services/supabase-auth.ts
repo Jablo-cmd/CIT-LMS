@@ -4,9 +4,19 @@ type SupabaseUser = { id: string; email?: string; [key: string]: unknown };
 type AuthSession = { access_token: string; refresh_token: string; expires_in: number; user: SupabaseUser };
 
 function authHeaders(accessToken?: string) {
+  if (!config.SUPABASE_ANON_KEY) throw new Error("SUPABASE_ANON_KEY is not configured");
   return {
     apikey: config.SUPABASE_ANON_KEY,
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+  };
+}
+
+function adminHeaders() {
+  if (!config.SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+  return {
+    apikey: config.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
+    "Content-Type": "application/json"
   };
 }
 
@@ -59,7 +69,7 @@ export async function signOutSupabase(accessToken: string) {
 export async function createSupabaseUser(email: string, password: string, fullName: string) {
   const response = await fetch(`${config.SUPABASE_URL}/auth/v1/admin/users`, {
     method: "POST",
-    headers: { apikey: config.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+    headers: adminHeaders(),
     body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { full_name: fullName } }),
     signal: AbortSignal.timeout(10_000)
   });
@@ -79,7 +89,7 @@ export async function updateSupabaseUserPassword(userId: string, password: strin
 export async function deleteSupabaseUser(userId: string) {
   const response = await fetch(`${config.SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
     method: "DELETE",
-    headers: { apikey: config.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}` },
+    headers: { apikey: adminHeaders().apikey, Authorization: adminHeaders().Authorization },
     signal: AbortSignal.timeout(10_000)
   });
   if (!response.ok && response.status !== 404) await parseResponse(response);
