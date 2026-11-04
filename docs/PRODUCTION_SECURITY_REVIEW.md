@@ -19,13 +19,13 @@
 Supabase's security advisor returned the following warnings on the existing production project:
 
 1. **Public execution of SECURITY DEFINER functions.** The advisor reports nine public-schema SECURITY DEFINER functions executable by `anon`, and eight executable by `authenticated`. The functions include:
-   - `bootstrap_owner_profile(uuid,text,text)`
+   - `bootstrap_owner_profile(p_user_id uuid, p_email text, p_full_name text)`
    - `calculate_working_leave_days(uuid,date,date)`
    - `can_access_document_object(text)`
    - `capture_leave_deduction(...)`
    - `current_role()`, `handle_auth_user_updated()`, `is_hr_or_owner()`, `is_owner()`, and `is_staff()`
 
-   The current `bootstrap_owner_profile` body refuses to create an owner if an active owner already exists, and the read-only check found one active owner. Nevertheless, an anonymous caller can invoke the function, and its purpose is privileged account bootstrap. It should not remain publicly executable. The new API branch no longer calls it; user provisioning uses Supabase Auth Admin from the server.
+   The current `bootstrap_owner_profile` body refuses to create an owner if an active owner already exists, and the read-only check found one active Company Owner profile. Nevertheless, an anonymous caller can invoke the function, and its purpose is privileged account bootstrap. It should not remain publicly executable. The new API branch no longer calls it; user provisioning uses Supabase Auth Admin from the server.
 
    The other functions perform internal role checks or support existing RLS policies, but their grants should be narrowed to the minimum required roles. Trigger-only functions should not be directly executable by API roles.
 
