@@ -125,9 +125,9 @@ model Employee {
   workingScheduleId  String?  @db.Uuid @map("working_schedule_id")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  department         Department? @relation(fields: [departmentId], references: [id])
-  currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id])
-  workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id])
+  department         Department? @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  currentPosting     PostingSite? @relation("CurrentPosting", fields: [currentPostingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  workingSchedule    WorkingSchedule? @relation(fields: [workingScheduleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   history            EmploymentHistory[]
   nextOfKin          NextOfKin[]
   documents          EmployeeDocument[]
@@ -202,11 +202,11 @@ model EmploymentHistory {
   notes                 String?
   supportingDocumentId  String? @unique(map: "employment_history_supporting_document_id_key") @db.Uuid @map("supporting_document_id")
   recordedById          String @db.Uuid @map("recorded_by_id")
-  employee              Employee @relation(fields: [employeeId], references: [id])
-  previousPosting       PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id])
-  newPosting            PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id])
-  supportingDocument    EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id])
-  recordedBy            User @relation("HistoryRecordedBy", fields: [recordedById], references: [id])
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  previousPosting       PostingSite? @relation("PreviousPosting", fields: [previousPostingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  newPosting            PostingSite? @relation("NewPosting", fields: [newPostingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supportingDocument    EmployeeDocument? @relation("HistoryDocument", fields: [supportingDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recordedBy            User @relation("HistoryRecordedBy", fields: [recordedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   @@index([employeeId, effectiveDate], map: "employment_history_employee_idx")
   @@map("employment_history")
 }
@@ -221,7 +221,7 @@ model NextOfKin {
   address      String?
   isPrimary    Boolean @default(false) @map("is_primary")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   @@map("next_of_kin")
 }
 
@@ -239,7 +239,7 @@ model LeavePolicy {
   notes           String?
   createdById     String @db.Uuid @map("created_by_id")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy       User @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id])
+  createdBy       User @relation("LeavePolicyCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   transactions    LeaveTransaction[]
   @@map("leave_policies")
 }
@@ -260,10 +260,10 @@ model LeaveTransaction {
   reversesId        String? @db.Uuid @map("reverses_id")
   capturedById      String @db.Uuid @map("captured_by_id")
   capturedAt        DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
-  employee          Employee @relation(fields: [employeeId], references: [id])
-  policy            LeavePolicy? @relation(fields: [policyId], references: [id])
-  capturedBy        User @relation("LeaveCapturedBy", fields: [capturedById], references: [id])
-  reverses          LeaveTransaction? @relation("LeaveReversals", fields: [reversesId], references: [id])
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  policy            LeavePolicy? @relation(fields: [policyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  capturedBy        User @relation("LeaveCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reverses          LeaveTransaction? @relation("LeaveReversals", fields: [reversesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reversedBy        LeaveTransaction[] @relation("LeaveReversals")
   documents         EmployeeDocument[] @relation("LeaveDocuments")
   @@index([employeeId, category, capturedAt], map: "leave_tx_employee_idx")
@@ -283,9 +283,9 @@ model OvertimeEntry {
   capturedById String @db.Uuid @map("captured_by_id")
   notes        String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  employee     Employee @relation(fields: [employeeId], references: [id])
-  postingSite  PostingSite? @relation(fields: [postingSiteId], references: [id])
-  capturedBy   User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id])
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  postingSite  PostingSite? @relation(fields: [postingSiteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  capturedBy   User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   documents    EmployeeDocument[] @relation("OvertimeDocuments")
   @@index([workDate, employeeId], map: "overtime_work_date_idx")
   @@map("overtime_entries")
@@ -302,8 +302,8 @@ model DisciplinaryRecord {
   notes        String?
   capturedById String @db.Uuid @map("captured_by_id")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  employee     Employee @relation(fields: [employeeId], references: [id])
-  capturedBy   User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id])
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  capturedBy   User @relation("DisciplinaryCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   documents    EmployeeDocument[] @relation("DisciplinaryDocuments")
   @@index([employeeId, hearingDate], map: "disciplinary_employee_idx")
   @@map("disciplinary_records")
@@ -319,8 +319,8 @@ model Recommendation {
   capturedById String @db.Uuid @map("captured_by_id")
   comments     String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  employee     Employee @relation(fields: [employeeId], references: [id])
-  capturedBy   User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id])
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  capturedBy   User @relation("RecommendationCapturedBy", fields: [capturedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   documents    EmployeeDocument[] @relation("RecommendationDocuments")
   @@index([employeeId, date], map: "recommendations_employee_idx")
   @@map("recommendations")
@@ -340,13 +340,13 @@ model EmployeeDocument {
   disciplinaryRecordId  String? @db.Uuid @map("disciplinary_record_id")
   recommendationId      String? @db.Uuid @map("recommendation_id")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  employee              Employee @relation(fields: [employeeId], references: [id])
-  uploadedBy            User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploadedBy            User @relation("DocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   historyEvent          EmploymentHistory? @relation("HistoryDocument")
-  leaveTransaction      LeaveTransaction? @relation("LeaveDocuments", fields: [leaveTransactionId], references: [id])
-  overtimeEntry         OvertimeEntry? @relation("OvertimeDocuments", fields: [overtimeEntryId], references: [id])
-  disciplinaryRecord    DisciplinaryRecord? @relation("DisciplinaryDocuments", fields: [disciplinaryRecordId], references: [id])
-  recommendation        Recommendation? @relation("RecommendationDocuments", fields: [recommendationId], references: [id])
+  leaveTransaction      LeaveTransaction? @relation("LeaveDocuments", fields: [leaveTransactionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_leave_fk")
+  overtimeEntry         OvertimeEntry? @relation("OvertimeDocuments", fields: [overtimeEntryId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_overtime_fk")
+  disciplinaryRecord    DisciplinaryRecord? @relation("DisciplinaryDocuments", fields: [disciplinaryRecordId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_disciplinary_fk")
+  recommendation        Recommendation? @relation("RecommendationDocuments", fields: [recommendationId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "employee_documents_recommendation_fk")
   @@index([employeeId, category], map: "employee_documents_employee_idx")
   @@map("employee_documents")
 }
@@ -362,7 +362,7 @@ model AuditLog {
   ipAddress  String? @map("ip_address")
   userAgent  String? @map("user_agent")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user       User? @relation(fields: [userId], references: [id])
+  user       User? @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   @@index([entityType, entityId, createdAt], map: "audit_entity_idx")
   @@index([userId, createdAt], map: "audit_user_idx")
   @@map("audit_logs")
