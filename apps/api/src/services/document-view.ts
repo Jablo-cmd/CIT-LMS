@@ -15,7 +15,7 @@ const extensionByMimeType: Record<string, string> = {
  */
 export function toDocumentView<T extends { title: string; mimeType: string; createdAt: Date }>(document: T) {
   const extension = extensionByMimeType[document.mimeType] ?? "";
-  const safeTitle = document.title.replace(/[\\/\\\\\u0000-\\u001f]/g, "-").trim() || "employee-document";
+  const safeTitle = document.title.replaceAll("/", "-").replaceAll("\\\\", "-").replace(/[\\u0000-\\u001f]/g, "-").trim().slice(0, 120) || "employee-document";
   return {
     ...document,
     originalName: `${safeTitle}${extension}`,
