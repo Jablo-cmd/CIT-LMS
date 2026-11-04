@@ -50,7 +50,7 @@ leaveRouter.patch("/policies/:id", hrOnly, async (req, res, next) => {
 leaveRouter.post("/policies", hrOnly, async (req, res, next) => {
   try {
     const input = policySchema.parse(req.body);
-    const existingPolicies = await prisma.leavePolicy.findMany({ where: { category: input.category, employmentType: input.employmentType ?? null, isActive: true } });
+    const existingPolicies = await prisma.leavePolicy.findMany({ where: { category: input.category, employmentType: input.employmentType ?? null } });
     const overlaps = existingPolicies.some(existing => (!existing.effectiveTo || existing.effectiveTo >= input.effectiveFrom) && (!input.effectiveTo || existing.effectiveFrom <= input.effectiveTo));
     if (overlaps) return res.status(409).json({ error: "This policy period overlaps an existing active policy for the same leave category and employment type. Close the previous period first." });
     const policy = await prisma.leavePolicy.create({ data: { ...input, createdById: req.auth!.userId } });
@@ -77,7 +77,7 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
       where: { employmentStatus: "ACTIVE", originalHireDate: { lte: monthEnd }, OR: [{ contractEndDate: null }, { contractEndDate: { gte: monthStart } }] }
     });
     const policies = (await prisma.leavePolicy.findMany({
-      where: { isActive: true, effectiveFrom: { lte: monthEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthStart } }] }
+      where: { effectiveFrom: { lte: monthEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: monthStart } }] }
     })).sort((a,b) => Number(!!b.employmentType)-Number(!!a.employmentType) || b.effectiveFrom.getTime()-a.effectiveFrom.getTime());
     const results: Array<{employeeId:string;category:string;days:number;transactionId:string}> = [];
     for (const employee of employees) {
@@ -103,9 +103,9 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
         if (existing) continue;
         const transaction = await prisma.$transaction(async tx => {
           const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: employee.id, category: policy.category } });
-          const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+          const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
           return tx.leaveTransaction.create({
-            data: { employeeId: employee.id, policyId: policy.id, category: policy.category, type: "ADJUSTMENT", days, balanceBefore: balance, balanceAfter: balance + days, reason: `Monthly policy accrual for ${input.year}-${String(input.month).padStart(2,"0")}`, referenceNumber, capturedById: req.auth!.userId }
+            data: { employeeId: employee.id, policyId: policy.id, category: policy.category, transactionType: "ADJUSTMENT", days, balanceAfter: balance + days, notes: `Monthly policy accrual for ${input.year}-${String(input.month).padStart(2,"0")}`, referenceNumber, capturedById: req.auth!.userId }
           });
         }, { isolationLevel: "Serializable" });
         results.push({ employeeId: employee.id, category: policy.category, days, transactionId: transaction.id });
@@ -134,7 +134,7 @@ leaveRouter.post("/carryover/apply", hrOnly, async (req, res, next) => {
     });
     const policies = (await prisma.leavePolicy.findMany({
       where: {
-        isActive: true, category: { not: "UNPAID" }, carryOverLimit: { not: null },
+        category: { not: "UNPAID" }, carryOverLimit: { not: null },
         effectiveFrom: { lte: yearEndDate }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: yearEndDate } }]
       }
     })).sort((a,b) => Number(!!b.employmentType)-Number(!!a.employmentType) || b.effectiveFrom.getTime()-a.effectiveFrom.getTime());
@@ -153,14 +153,14 @@ leaveRouter.post("/carryover/apply", hrOnly, async (req, res, next) => {
         const ledger = await prisma.leaveTransaction.findMany({
           where: { employeeId:employee.id, category:policy.category, capturedAt:{ lte:cutoff } }
         });
-        const balance = ledger.reduce((total,row)=>total+(row.type==="DEDUCTION"?-Number(row.days):Number(row.days)),0);
+        const balance = ledger.reduce((total,row)=>total+(row.transactionType==="DEDUCTION"?-Number(row.days):Number(row.days)),0);
         if (balance <= limit) continue;
         const adjustmentDays = Math.round((limit-balance)*100)/100;
         const transaction = await prisma.$transaction(async tx => tx.leaveTransaction.create({
           data: {
             employeeId:employee.id, policyId:policy.id, category:policy.category,
             type:"ADJUSTMENT", days:adjustmentDays, balanceBefore:balance,
-            balanceAfter:limit, reason:`Year-end ${input.year} carry-over cap applied (maximum ${limit} days)`,
+            balanceAfter:limit, notes:`Year-end ${input.year} carry-over cap applied (maximum ${limit} days)`,
             referenceNumber, capturedById:req.auth!.userId
           }
         }), { isolationLevel:"Serializable" });
@@ -189,7 +189,7 @@ leaveRouter.get("/balances", allStaff, async (req, res, next) => {
     for(const transaction of transactions){
       if(transaction.category==="UNPAID") continue;
       const current=balances.get(transaction.employeeId)??{};
-      current[transaction.category]=(current[transaction.category]??0)+(transaction.type==="DEDUCTION"?-Number(transaction.days):Number(transaction.days));
+      current[transaction.category]=(current[transaction.category]??0)+(transaction.transactionType==="DEDUCTION"?-Number(transaction.days):Number(transaction.days));
       balances.set(transaction.employeeId,current);
     }
     return res.json({items:employees.map(employee=>({employee,balances:balances.get(employee.id)??{}}))});
@@ -207,7 +207,7 @@ leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
       if (key === "UNPAID") continue;
       const previous = balances.get(key) ?? 0;
       const days = Number(row.days);
-      const next = row.type === "DEDUCTION" ? previous - days : previous + days;
+      const next = row.transactionType === "DEDUCTION" ? previous - days : previous + days;
       balances.set(key, next);
     }
     return res.json({ employee, balances: Object.fromEntries(balances) });
@@ -234,7 +234,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
       category: z.enum(["ANNUAL","SICK","FAMILY_RESPONSIBILITY","MATERNITY","PATERNITY_PARENTAL","UNPAID","STUDY","OTHER"]),
       firstLeaveDate: z.coerce.date(),
       lastLeaveDate: z.coerce.date(),
-      formSubmissionDate: z.coerce.date().optional(),
+      paperFormDate: z.coerce.date().optional(),
       reason: z.string().max(2000).optional(),
       referenceNumber: z.string().max(100).optional(),
       supportingDocumentId: z.string().min(1)
@@ -247,7 +247,7 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
     if (!supportingDocument) return res.status(400).json({ error: "A supporting leave form belonging to this employee is required" });
     const policyCandidates = input.category === "UNPAID" ? [] : await prisma.leavePolicy.findMany({
       where: {
-        category: input.category, isActive: true,
+        category: input.category,
         effectiveFrom: { lte: input.firstLeaveDate },
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: input.lastLeaveDate } }],
         AND: [{ OR: [{ employmentType: null }, { employmentType: employee.employmentType }] }]
@@ -258,15 +258,15 @@ leaveRouter.post("/transactions", allStaff, async (req, res, next) => {
 
     const transaction = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: input.employeeId, category: input.category }, orderBy: { capturedAt: "asc" } });
-      const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+      const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       if (input.category !== "UNPAID" && balance < days) throw new Error("INSUFFICIENT_LEAVE_BALANCE");
       return tx.leaveTransaction.create({
         data: {
           employeeId: input.employeeId, policyId: policy?.id, category: input.category,
-          type: "DEDUCTION", firstLeaveDate: input.firstLeaveDate, lastLeaveDate: input.lastLeaveDate,
-          formSubmissionDate: input.formSubmissionDate, days, balanceBefore: input.category === "UNPAID" ? null : balance,
-          balanceAfter: input.category === "UNPAID" ? null : balance - days, reason: input.reason, referenceNumber: input.referenceNumber,
-          capturedById: req.auth!.userId, documents: { connect: [{ id: supportingDocument.id }] }
+          transactionType: "DEDUCTION", firstLeaveDate: input.firstLeaveDate, lastLeaveDate: input.lastLeaveDate,
+          paperFormDate: input.paperFormDate, days, balanceBefore: input.category === "UNPAID" ? null : balance,
+          balanceAfter: input.category === "UNPAID" ? null : balance - days, notes: input.reason, referenceNumber: input.referenceNumber,
+          capturedById: req.auth!.userId, 
         },
         include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, documents: { select: { id:true, title:true, originalName:true } } }
       });
@@ -291,9 +291,9 @@ leaveRouter.post("/balances/:employeeId/adjust", hrOnly, async (req, res, next) 
     if (!employee) return res.status(404).json({ error: "Employee not found" });
     const transaction = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: employee.id, category: input.category } });
-      const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+      const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       return tx.leaveTransaction.create({
-        data: { employeeId: employee.id, category: input.category, type: "ADJUSTMENT", days: input.days, balanceBefore: balance, balanceAfter: balance + input.days, reason: input.reason, capturedById: req.auth!.userId }
+        data: { employeeId: employee.id, category: input.category, transactionType: "ADJUSTMENT", days: input.days, balanceAfter: balance + input.days, notes: input.reason, capturedById: req.auth!.userId }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "LEAVE_BALANCE_ADJUSTMENT", "LeaveTransaction", transaction.id, undefined, transaction);
@@ -307,16 +307,16 @@ leaveRouter.post("/transactions/:id/reverse", hrOnly, async (req, res, next) => 
     const input = z.object({ reason: z.string().trim().min(5).max(2000) }).parse(req.body);
     const original = await prisma.leaveTransaction.findUnique({ where: { id: String(req.params.id) } });
     if (!original) return res.status(404).json({ error: "Leave transaction not found" });
-    if (original.type === "REVERSAL" || original.type === "VOID") return res.status(400).json({ error: "A reversal or void transaction cannot itself be reversed" });
+    if (original.transactionType === "REVERSAL" || original.transactionType === "VOID") return res.status(400).json({ error: "A reversal or void transaction cannot itself be reversed" });
     const referenceNumber = `REVERSAL-${original.id}`;
     const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId: original.employeeId, category: original.category, referenceNumber } });
     if (existing) return res.status(409).json({ error: "This leave transaction has already been reversed" });
-    const reversalDays = original.type === "DEDUCTION" ? Number(original.days) : -Number(original.days);
+    const reversalDays = original.transactionType === "DEDUCTION" ? Number(original.days) : -Number(original.days);
     const reversal = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: original.employeeId, category: original.category } });
-      const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+      const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       return tx.leaveTransaction.create({
-        data: { employeeId: original.employeeId, category: original.category, type: "REVERSAL", days: reversalDays, balanceBefore: balance, balanceAfter: balance + reversalDays, reason: input.reason, referenceNumber, capturedById: req.auth!.userId }
+        data: { employeeId: original.employeeId, category: original.category, transactionType: "REVERSAL", days: reversalDays, balanceAfter: balance + reversalDays, notes: input.reason, referenceNumber, capturedById: req.auth!.userId }
       });
     }, { isolationLevel: "Serializable" });
     await writeAudit(req, "REVERSE_LEAVE_TRANSACTION", "LeaveTransaction", reversal.id, original, reversal);
@@ -331,9 +331,9 @@ leaveRouter.post("/transactions/:id/adjust", hrOnly, async (req, res, next) => {
     if (!original) return res.status(404).json({ error: "Leave transaction not found" });
     const transaction = await prisma.$transaction(async tx => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: original.employeeId, category: original.category } });
-      const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
+      const balance = ledger.reduce((total, row) => total + (row.transactionType === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       const adjustment = await tx.leaveTransaction.create({
-        data: { employeeId: original.employeeId, category: original.category, type: "ADJUSTMENT", days: input.days, balanceBefore: balance, balanceAfter: balance + input.days, reason: input.reason, referenceNumber: original.id, capturedById: req.auth!.userId }
+        data: { employeeId: original.employeeId, category: original.category, transactionType: "ADJUSTMENT", days: input.days, balanceAfter: balance + input.days, notes: input.reason, referenceNumber: original.id, capturedById: req.auth!.userId }
       });
       return adjustment;
     }, { isolationLevel: "Serializable" });
