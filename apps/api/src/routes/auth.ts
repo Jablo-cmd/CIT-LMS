@@ -9,6 +9,9 @@ import { requireAuth } from "../middleware/auth.js";
 export const authRouter = Router();
 const cookieBase = { httpOnly: true, secure: config.COOKIE_SECURE === "true", sameSite: config.COOKIE_SAMESITE, path: "/" } as const;
 // Hash verified against when the account does not exist, so response time does not reveal which emails are registered.
+// Account lockout lives in the database rather than process memory, so it holds across serverless instances.
+const MAX_FAILED_LOGINS = 5;
+const LOCKOUT_MINUTES = 15;
 const decoyHash = await argon2.hash("decoy-password-for-timing-equalisation");
 const loginSchema = z.object({ email: z.string().email().max(254), password: z.string().min(1).max(200) });
 
@@ -17,10 +20,20 @@ authRouter.post("/login", async (req, res, next) => {
     const input = loginSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
     const passwordOk = await argon2.verify(user?.passwordHash ?? decoyHash, input.password);
+    if (user?.lockedUntil && user.lockedUntil > new Date()) {
+      return res.status(429).json({ error: "Too many failed sign-in attempts. Try again later or ask a Company Owner to reset your password." });
+    }
     if (!user || !user.isActive || !passwordOk) {
+      if (user) {
+        const { failedLoginCount } = await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: { increment: 1 } }, select: { failedLoginCount: true } });
+        if (failedLoginCount >= MAX_FAILED_LOGINS) {
+          await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: new Date(Date.now() + LOCKOUT_MINUTES * 60_000) } });
+          await prisma.auditLog.create({ data: { userId: user.id, action: "LOGIN_LOCKOUT", entityType: "User", entityId: user.id, ipAddress: req.ip, userAgent: req.get("user-agent")?.slice(0,500) } });
+        }
+      }
       return res.status(401).json({ error: "Invalid email or password" });
     }
-    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), failedLoginCount: 0, lockedUntil: null } });
     await prisma.auditLog.create({ data: { userId:user.id, action:"LOGIN", entityType:"User", entityId:user.id, ipAddress:req.ip, userAgent:req.get("user-agent")?.slice(0,500) } });
     const token = jwt.sign({ role: user.role, tokenVersion: user.tokenVersion }, config.JWT_ACCESS_SECRET, { subject: user.id, expiresIn: config.JWT_ACCESS_TTL as jwt.SignOptions["expiresIn"] });
     // Keep the cookie lifetime in step with the token's own expiry so the two cannot diverge.

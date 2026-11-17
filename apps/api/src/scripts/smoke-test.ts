@@ -67,6 +67,17 @@ async function main() {
   const hrCookie = await login(hrEmail, hrPassword);
   const adminCookie = await login(adminEmail, adminPassword);
 
+  // Account lockout: the fifth consecutive failure locks the account even for the correct password,
+  // and an owner password reset clears the lock.
+  const lockEmail = `lock-${suffix}@cit-lms.test`;
+  const lockPassword = `CIT-LMS-CI-${randomUUID()}-B7!`;
+  const lockedUser = await prisma.user.create({ data: { email: lockEmail, fullName: "CI Lockout", passwordHash: await argon2.hash(lockPassword), role: "ADMIN_PERSONNEL", failedLoginCount: 4 } });
+  await request("/auth/login", undefined, "POST", { email: lockEmail, password: "definitely-the-wrong-password" }, 401);
+  await request("/auth/login", undefined, "POST", { email: lockEmail, password: lockPassword }, 429);
+  const unlockedPassword = `CIT-LMS-CI-${randomUUID()}-C3!`;
+  await request(`/users/${lockedUser.id}/reset-password`, ownerCookie, "POST", { newPassword: unlockedPassword });
+  await login(lockEmail, unlockedPassword);
+
   await request("/users", ownerCookie, "POST", { email: `csrf-missing-${suffix}@cit-lms.test`, fullName: "Blocked Missing Origin", password: initialPassword, role: "ADMIN_PERSONNEL" }, 403, null);
   await request("/users", ownerCookie, "POST", { email: `csrf-untrusted-${suffix}@cit-lms.test`, fullName: "Blocked Untrusted Origin", password: initialPassword, role: "ADMIN_PERSONNEL" }, 403, "https://untrusted.example");
   await request("/users", hrCookie, "GET", undefined, 403);
@@ -89,6 +100,12 @@ async function main() {
     employmentType: "PERMANENT", originalHireDate: "2020-01-01"
   }, 409);
   await request(`/employees/${employeeId}`, adminCookie, "PATCH", { employmentStatus: "SUSPENDED" }, 403);
+  await request("/employees", adminCookie, "POST", {
+    employeeNumber: `${employeeNumber}-ADM`, firstName: "Blocked", lastName: "Status",
+    employmentType: "PERMANENT", employmentStatus: "SUSPENDED", originalHireDate: "2020-01-01"
+  }, 403);
+  await request("/employees?status=NOT_A_STATUS", ownerCookie, "GET", undefined, 400);
+  await request("/overtime?from=not-a-date", ownerCookie, "GET", undefined, 400);
 
   const upload = new FormData();
   upload.set("title", "CI appointment letter");
@@ -187,6 +204,21 @@ async function main() {
   await request(`/leave/transactions/${leave.payload.transaction.id}/reverse`, hrCookie, "POST", { reason: "CI verifies reversal workflow" }, 201);
   const reversedBalance = await request(`/leave/balances/${employeeId}`, hrCookie);
   assert(Number(reversedBalance.payload.balances.ANNUAL) === 5, "reversal must restore the original leave balance");
+
+  // A transaction may be adjusted more than once; each adjustment gets its own reference.
+  await request(`/leave/transactions/${leave.payload.transaction.id}/adjust`, hrCookie, "POST", { days: 1, reason: "CI first correction" }, 201);
+  await request(`/leave/transactions/${leave.payload.transaction.id}/adjust`, hrCookie, "POST", { days: -1, reason: "CI second correction" }, 201);
+  const adjustedBalance = await request(`/leave/balances/${employeeId}`, hrCookie);
+  assert(Number(adjustedBalance.payload.balances.ANNUAL) === 5, "repeated adjustments must both be recorded and net to zero here");
+
+  // Invalid input must produce client errors, not server errors.
+  await request("/leave/calculate", hrCookie, "POST", { employeeId, firstLeaveDate: "2026-06-17", lastLeaveDate: "2026-06-15" }, 400);
+  await request("/leave/calculate", hrCookie, "POST", { employeeId, firstLeaveDate: "2020-01-01", lastLeaveDate: "2026-06-15" }, 400);
+  await request("/leave/calculate", hrCookie, "POST", { employeeId: "no-such-employee", firstLeaveDate: "2026-06-15", lastLeaveDate: "2026-06-16" }, 404);
+  await request("/leave/transactions?category=NOT_A_CATEGORY", hrCookie, "GET", undefined, 400);
+  await request("/documents?category=NOT_A_CATEGORY", hrCookie, "GET", undefined, 400);
+  const nextYear = new Date().getUTCFullYear() + 1;
+  await request("/leave/accruals/run", hrCookie, "POST", { year: nextYear, month: 1 }, 400);
 
   await request("/leave/transactions", hrCookie, "POST", {
     employeeId, category: "UNPAID", firstLeaveDate: "2026-06-18",

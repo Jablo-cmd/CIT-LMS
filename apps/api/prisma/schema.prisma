@@ -69,6 +69,8 @@ model User {
   fullName      String
   passwordHash  String
   tokenVersion  Int      @default(0)
+  failedLoginCount Int   @default(0)
+  lockedUntil   DateTime?
   role          UserRole
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
@@ -206,6 +208,7 @@ model EmployeeDocument {
   overtimeFiles   OvertimeEntry[]
   disciplinary    DisciplinaryRecord[]
   recommendations Recommendation[]
+  @@index([employeeId])
 }
 
 model WorkingSchedule {
