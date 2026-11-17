@@ -1,7 +1,5 @@
 import express from "express";
-// Namespace/named imports (rather than default imports) type-check identically whether a toolchain resolves
-// these CommonJS-shipped packages as ESM or CJS; Vercel's TypeScript step resolves them differently to tsc here.
-import * as helmetModule from "helmet";
+import { createRequire } from "node:module";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
@@ -25,10 +23,15 @@ import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
 import { HttpError } from "./errors.js";
 
+// helmet ships CommonJS with a types file whose default export is resolved differently by tsc and by Vercel's
+// build step (TS2349 "not callable" there). Loading it through require() is identical in every toolchain, and
+// the explicit type keeps the call site checked.
+const helmet: () => express.RequestHandler = createRequire(import.meta.url)("helmet");
+
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
-app.use(helmetModule.default());
+app.use(helmet());
 app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
