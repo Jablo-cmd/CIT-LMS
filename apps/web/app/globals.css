@@ -142,4 +142,5 @@ input[type=checkbox],input[type=radio]{accent-color:var(--orange)}
 .notfound-card{text-align:center}
 .notfound-card .auth-logo{display:block;margin:0 auto}
 .notfound-card .primary-link,.notfound-card .primary-button{margin:0 auto}
-
+.auth-card h1 + .auth-form{margin-top:24px}
+.auth-card h1 + .form-notice{margin-top:20px}

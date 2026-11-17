@@ -87,9 +87,7 @@ export default function LoginPage() {
         </div>
         {!mfaToken ? (
           <>
-            <p className="eyebrow">SECURE WORKSPACE</p>
             <h1>Sign in</h1>
-            <p className="auth-intro">Sign in with your individual CIT-LMS account.</p>
             {expired && !error && <p className="form-notice" role="status">Your session has ended. Please sign in again to continue.</p>}
             <form onSubmit={submitPassword} className="auth-form">
               <label>
