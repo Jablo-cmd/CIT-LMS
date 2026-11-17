@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { calculateWorkingLeaveDays } from "../services/leave-calculation.js";
+import { leaveCategories, optionalEnum } from "../validation.js";
 
 export const leaveRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -71,6 +73,8 @@ leaveRouter.post("/calculate", allStaff, async (req, res, next) => {
 leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({ year: z.number().int().min(2000).max(2100), month: z.number().int().min(1).max(12) }).parse(req.body);
+    const now = new Date();
+    if (Date.UTC(input.year, input.month - 1, 1) > Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) return res.status(400).json({ error: "Leave cannot be accrued for a future month" });
     const monthStart = new Date(Date.UTC(input.year, input.month - 1, 1));
     const monthEnd = new Date(Date.UTC(input.year, input.month, 0, 23, 59, 59, 999));
     const employees = await prisma.employee.findMany({
@@ -98,7 +102,8 @@ leaveRouter.post("/accruals/run", hrOnly, async (req, res, next) => {
         const coveredDays = Math.floor((Date.UTC(periodEnd.getUTCFullYear(),periodEnd.getUTCMonth(),periodEnd.getUTCDate())-Date.UTC(periodStart.getUTCFullYear(),periodStart.getUTCMonth(),periodStart.getUTCDate()))/86400000)+1;
         const days = Math.round(monthlyRate * coveredDays / daysInMonth * 100) / 100;
         if (days <= 0) continue;
-        const referenceNumber = `ACCRUAL-${input.year}-${String(input.month).padStart(2,"0")}-${employee.id}-${policy.id}`;
+        // One accrual per employee, category and month, even if the governing policy changes between runs.
+        const referenceNumber = `ACCRUAL-${input.year}-${String(input.month).padStart(2,"0")}`;
         const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId: employee.id, category: policy.category, referenceNumber } });
         if (existing) continue;
         const transaction = await prisma.$transaction(async tx => {
@@ -147,7 +152,7 @@ leaveRouter.post("/carryover/apply", hrOnly, async (req, res, next) => {
       }
       for (const policy of latestByCategory.values()) {
         const limit = Number(policy.carryOverLimit);
-        const referenceNumber = `CARRYOVER-${input.year}-${employee.id}-${policy.id}`;
+        const referenceNumber = `CARRYOVER-${input.year}`;
         const existing = await prisma.leaveTransaction.findFirst({ where: { employeeId:employee.id, category:policy.category, referenceNumber } });
         if (existing) continue;
         const ledger = await prisma.leaveTransaction.findMany({
@@ -156,14 +161,20 @@ leaveRouter.post("/carryover/apply", hrOnly, async (req, res, next) => {
         const balance = ledger.reduce((total,row)=>total+(row.type==="DEDUCTION"?-Number(row.days):Number(row.days)),0);
         if (balance <= limit) continue;
         const adjustmentDays = Math.round((limit-balance)*100)/100;
-        const transaction = await prisma.$transaction(async tx => tx.leaveTransaction.create({
-          data: {
-            employeeId:employee.id, policyId:policy.id, category:policy.category,
-            type:"ADJUSTMENT", days:adjustmentDays, balanceBefore:balance,
-            balanceAfter:limit, reason:`Year-end ${input.year} carry-over cap applied (maximum ${limit} days)`,
-            referenceNumber, capturedById:req.auth!.userId
-          }
-        }), { isolationLevel:"Serializable" });
+        const transaction = await prisma.$transaction(async tx => {
+          // The cap is computed from the year-end balance, but the entry is appended to the live ledger,
+          // so the recorded before/after balances must reflect the live ledger at the time of writing.
+          const live = await tx.leaveTransaction.findMany({ where: { employeeId:employee.id, category:policy.category } });
+          const liveBalance = live.reduce((total,row)=>total+(row.type==="DEDUCTION"?-Number(row.days):Number(row.days)),0);
+          return tx.leaveTransaction.create({
+            data: {
+              employeeId:employee.id, policyId:policy.id, category:policy.category,
+              type:"ADJUSTMENT", days:adjustmentDays, balanceBefore:liveBalance,
+              balanceAfter:liveBalance+adjustmentDays, reason:`Year-end ${input.year} carry-over cap applied (maximum ${limit} days; year-end balance ${balance})`,
+              referenceNumber, capturedById:req.auth!.userId
+            }
+          });
+        }, { isolationLevel:"Serializable" });
         created.push({employeeId:employee.id,category:policy.category,days:adjustmentDays,transactionId:transaction.id});
       }
     }
@@ -217,9 +228,9 @@ leaveRouter.get("/balances/:employeeId", allStaff, async (req, res, next) => {
 leaveRouter.get("/transactions", allStaff, async (req, res, next) => {
   try {
     const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
-    const category = typeof req.query.category === "string" ? req.query.category : undefined;
+    const category = optionalEnum(leaveCategories).parse(req.query.category);
     const items = await prisma.leaveTransaction.findMany({
-      where: { ...(employeeId ? { employeeId } : {}), ...(category ? { category: category as never } : {}) },
+      where: { ...(employeeId ? { employeeId } : {}), ...(category ? { category } : {}) },
       include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, capturedBy: { select: { fullName: true } } },
       orderBy: { capturedAt: "desc" }, take: 500
     });
@@ -333,7 +344,7 @@ leaveRouter.post("/transactions/:id/adjust", hrOnly, async (req, res, next) => {
       const ledger = await tx.leaveTransaction.findMany({ where: { employeeId: original.employeeId, category: original.category } });
       const balance = ledger.reduce((total, row) => total + (row.type === "DEDUCTION" ? -Number(row.days) : Number(row.days)), 0);
       const adjustment = await tx.leaveTransaction.create({
-        data: { employeeId: original.employeeId, category: original.category, type: "ADJUSTMENT", days: input.days, balanceBefore: balance, balanceAfter: balance + input.days, reason: input.reason, referenceNumber: original.id, capturedById: req.auth!.userId }
+        data: { employeeId: original.employeeId, category: original.category, type: "ADJUSTMENT", days: input.days, balanceBefore: balance, balanceAfter: balance + input.days, reason: input.reason, referenceNumber: `ADJUST-${original.id}-${randomUUID()}`, capturedById: req.auth!.userId }
       });
       return adjustment;
     }, { isolationLevel: "Serializable" });

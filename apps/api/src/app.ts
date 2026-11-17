@@ -21,6 +21,7 @@ import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
+import { HttpError } from "./errors.js";
 
 export const app = express();
 app.disable("x-powered-by");
@@ -52,6 +53,7 @@ app.use("/api/calendar", calendarRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/audit", auditRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
   if (err instanceof ZodError) return res.status(400).json({ error: "Validation failed", details: err.issues });
   if (typeof err === "object" && err !== null && "code" in err) {
     if (err.code === "P2002") return res.status(409).json({ error: "A record with this unique value already exists" });

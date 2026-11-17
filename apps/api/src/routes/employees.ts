@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { employmentStatuses, optionalEnum } from "../validation.js";
 
 export const employeesRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -35,12 +36,12 @@ const createSchema = z.object({
 employeesRouter.get("/", allStaff, async (req, res, next) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    const status = optionalEnum(employmentStatuses).parse(req.query.status);
     const postingId = typeof req.query.postingId === "string" ? req.query.postingId : undefined;
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(500, Math.max(1, Number(req.query.pageSize) || 25));
     const where = {
-      ...(status ? { employmentStatus: status as "ACTIVE" | "SUSPENDED" | "RESIGNED" | "DISMISSED" | "DECEASED" } : {}),
+      ...(status ? { employmentStatus: status } : {}),
       ...(postingId ? { currentPostingId: postingId } : {}),
       ...(q ? { OR: [
         { employeeNumber: { contains: q, mode: "insensitive" as const } },
@@ -97,6 +98,7 @@ employeesRouter.get("/:id", allStaff, async (req, res, next) => {
 employeesRouter.post("/", allStaff, async (req, res, next) => {
   try {
     const input = createSchema.parse(req.body);
+    if (req.auth!.role === "ADMIN_PERSONNEL" && input.employmentStatus !== "ACTIVE") return res.status(403).json({ error: "Only HR Manager or Company Owner may create an employee with a non-active status" });
     if (input.departmentId && !(await prisma.department.findUnique({ where: { id: input.departmentId } }))) return res.status(400).json({ error: "Department not found" });
     if (input.workingScheduleId && !(await prisma.workingSchedule.findUnique({ where: { id: input.workingScheduleId } }))) return res.status(400).json({ error: "Working schedule not found" });
     const employee = await prisma.$transaction(async tx => {

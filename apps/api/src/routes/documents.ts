@@ -8,6 +8,7 @@ import { config } from "../config.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { persistPrivateObject } from "../services/document-persistence.js";
+import { documentCategories, optionalEnum } from "../validation.js";
 import { createSignedDownloadUrl, getObject, removeObject, saveObject } from "../services/document-storage.js";
 
 export const documentsRouter = Router();
@@ -33,12 +34,12 @@ function mimeTypeFor(extension: string) {
 documentsRouter.get("/", allStaff, async (req, res, next) => {
   try {
     const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
-    const category = typeof req.query.category === "string" ? req.query.category : undefined;
+    const category = optionalEnum(documentCategories).parse(req.query.category);
     const isAdmin = req.auth!.role === "ADMIN_PERSONNEL";
     const items = await prisma.employeeDocument.findMany({
       where: {
         ...(employeeId ? { employeeId } : {}),
-        ...(category ? { category: category as never } : {}),
+        ...(category ? { category } : {}),
         ...(isAdmin ? { category: { not: "IDENTITY_PERSONAL" }, disciplinary: { none: {} } } : {})
       },
       select: { id:true, employeeId:true, title:true, category:true, originalName:true, mimeType:true, sizeBytes:true, description:true, uploadedAt:true, employee:{select:{employeeNumber:true,firstName:true,lastName:true}}, uploadedBy:{select:{fullName:true}} },

@@ -30,6 +30,14 @@ describe("countWorkingDays", () => {
     expect(countWorkingDays(new Date("2025-12-30T00:00:00Z"), new Date("2026-01-02T00:00:00Z"), [1, 2, 3, 4, 5])).toBe(4);
   });
 
+  it("rejects ranges longer than the maximum leave period", () => {
+    expect(() => countWorkingDays(new Date("2026-01-01T00:00:00Z"), new Date("2028-01-01T00:00:00Z"), [1, 2, 3, 4, 5])).toThrow(/cannot exceed/i);
+  });
+
+  it("allows a full-year range", () => {
+    expect(countWorkingDays(new Date("2026-01-01T00:00:00Z"), new Date("2026-12-31T00:00:00Z"), [1, 2, 3, 4, 5])).toBeGreaterThan(200);
+  });
+
   it("rejects inverted date ranges", () => {
     expect(() => countWorkingDays(new Date("2026-06-05T00:00:00Z"), new Date("2026-06-01T00:00:00Z"), [1, 2, 3, 4, 5])).toThrow(/on or after/i);
   });
