@@ -114,7 +114,7 @@ Initial posting-site seed data (verify operational details before production use
 HR-authorised users can add posting sites later. Keep posting history with start/end dates; do not overwrite previous assignments. Record the manager responsible for each site assignment and preserve relevant manager history.
 
 Reference values (CIT Business Solutions is an IT company):
-- Departments: Operations, Client Liaison, IT & Systems, Human Resources, Finance, Compliance & Risk.
+- Departments: Help Desk, Technical Support, Networking & Infrastructure, Client Services, Management, Human Resources, Administration, Finance.
 - Positions (a fixed list, enforced by the API and served to the app from `GET /api/postings/positions`): Help Desk, IT Technician, Director, Human Resources, Administrator, Network Engineer. Add a position by editing `apps/api/src/positions.ts`.
 
 ## 7. Leave register
