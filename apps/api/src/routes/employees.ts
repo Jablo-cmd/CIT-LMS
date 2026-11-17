@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { employmentStatuses, optionalEnum } from "../validation.js";
+import { POSITIONS } from "../positions.js";
 
 export const employeesRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -27,6 +28,7 @@ const createSchema = z.object({
   contractStartDate: z.coerce.date().optional(),
   contractEndDate: z.coerce.date().optional(),
   departmentId: z.string().optional(),
+  currentPosition: z.enum(POSITIONS).optional(),
   workingScheduleId: z.string().optional()
 }).superRefine((v, ctx) => {
   if (v.employmentType === "CONTRACT" && !v.contractStartDate) ctx.addIssue({ code: "custom", path: ["contractStartDate"], message: "Contract start date is required" });
@@ -126,12 +128,13 @@ const updateSchema = z.object({
   contractStartDate: z.coerce.date().nullable().optional(),
   contractEndDate: z.coerce.date().nullable().optional(),
   departmentId: z.string().nullable().optional(),
+  currentPosition: z.enum(POSITIONS).nullable().optional(),
 }).refine(v => Object.keys(v).length > 0, { message: "At least one field must be supplied" });
 
 employeesRouter.patch("/:id", allStaff, async (req, res, next) => {
   try {
     const input = updateSchema.parse(req.body);
-    const restricted = ["employmentType","employmentStatus","contractStartDate","contractEndDate","departmentId"];
+    const restricted = ["employmentType","employmentStatus","contractStartDate","contractEndDate","departmentId","currentPosition"];
     if (req.auth!.role === "ADMIN_PERSONNEL" && restricted.some(key => key in input)) return res.status(403).json({ error: "This change requires HR Manager or Company Owner permissions" });
     const before = await prisma.employee.findUnique({ where: { id: String(req.params.id) } });
     if (!before) return res.status(404).json({ error: "Employee not found" });

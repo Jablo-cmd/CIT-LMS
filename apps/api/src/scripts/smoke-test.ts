@@ -102,6 +102,13 @@ async function main() {
     employmentType: "PERMANENT", originalHireDate: "2020-01-01"
   }, 409);
   await request(`/employees/${employeeId}`, adminCookie, "PATCH", { employmentStatus: "SUSPENDED" }, 403);
+  const positions = await request("/postings/positions", adminCookie);
+  assert(Array.isArray(positions.payload.items) && positions.payload.items.length === 6 && positions.payload.items.includes("Network Engineer"), "the approved position list must be served to the web app");
+  await request(`/employees/${employeeId}`, ownerCookie, "PATCH", { currentPosition: "Cash Custodian" }, 400);
+  await request(`/employees/${employeeId}`, adminCookie, "PATCH", { currentPosition: "Director" }, 403);
+  await request("/employees", ownerCookie, "POST", { employeeNumber: `${employeeNumber}-POS`, firstName: "Position", lastName: "Check", employmentType: "PERMANENT", originalHireDate: "2020-01-01", currentPosition: "Not a real position" }, 400);
+  const withPosition = await request("/employees", ownerCookie, "POST", { employeeNumber: `${employeeNumber}-POS2`, firstName: "Position", lastName: "Check", employmentType: "PERMANENT", originalHireDate: "2020-01-01", currentPosition: "Help Desk" }, 201);
+  assert(withPosition.payload.employee.currentPosition === "Help Desk", "an employee can be created with an approved position");
   await request("/employees", adminCookie, "POST", {
     employeeNumber: `${employeeNumber}-ADM`, firstName: "Blocked", lastName: "Status",
     employmentType: "PERMANENT", employmentStatus: "SUSPENDED", originalHireDate: "2020-01-01"
@@ -176,12 +183,12 @@ async function main() {
   assert(forbiddenPhotoResponse.status === 403, "administrative personnel must not upload or replace employee photos");
 
   await request(`/postings/history/${employeeId}`, hrCookie, "POST", {
-    newPosition: "CI Operations Assistant", effectiveDate: "2020-01-01",
+    newPosition: "IT Technician", effectiveDate: "2020-01-01",
     reason: "Initial appointment for integration verification",
     supportingDocumentId: uploaded.document.id
   }, 201);
   const profile = await request(`/employees/${employeeId}`, hrCookie);
-  assert(profile.payload.employee.currentPosition === "CI Operations Assistant", "documented assignment must update current employee position");
+  assert(profile.payload.employee.currentPosition === "IT Technician", "documented assignment must update current employee position");
   assert(!JSON.stringify(profile.payload).includes("storagePath"), "employee profile must not expose private storage paths");
 
   await request("/leave/policies", hrCookie, "POST", {

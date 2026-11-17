@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
+import { POSITIONS } from "../positions.js";
 
 export const postingsRouter = Router();
 const allStaff = allowRoles("COMPANY_OWNER", "HR_MANAGER", "ADMIN_PERSONNEL");
@@ -21,6 +22,8 @@ postingsRouter.post("/sites", hrOnly, async (req, res, next) => {
     return res.status(201).json({ site });
   } catch (e) { return next(e); }
 });
+
+postingsRouter.get("/positions", allStaff, (_req, res) => res.json({ items: POSITIONS }));
 
 postingsRouter.get("/departments", allStaff, async (_req, res, next) => {
   try { return res.json({ items: await prisma.department.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }) }); }
@@ -50,7 +53,7 @@ postingsRouter.get("/history/:employeeId", allStaff, async (req, res, next) => {
 postingsRouter.post("/history/:employeeId", hrOnly, async (req, res, next) => {
   try {
     const input = z.object({
-      newPosition: z.string().trim().max(120).optional(),
+      newPosition: z.enum(POSITIONS).optional(),
       newDeployedRole: z.string().trim().max(120).optional(),
       newPostingId: z.string().optional(),
       effectiveDate: z.coerce.date(),

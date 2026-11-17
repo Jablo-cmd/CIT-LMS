@@ -11,6 +11,7 @@ export default function NewEmployeePage(){
   const [departments,setDepartments]=useState<RefItem[]>([]);
   const [sites,setSites]=useState<RefItem[]>([]);
   const [schedules,setSchedules]=useState<RefItem[]>([]);
+  const [positions,setPositions]=useState<string[]>([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [form,setForm]=useState({
@@ -18,14 +19,15 @@ export default function NewEmployeePage(){
     addressStreet:"",addressSuburb:"",addressCity:"",addressProvince:"",addressPostalCode:"",
     phone:"",email:"",employmentType:"PERMANENT",employmentStatus:"ACTIVE",
     originalHireDate:"",contractStartDate:"",contractEndDate:"",
-    departmentId:"",workingScheduleId:""
+    departmentId:"",currentPosition:"",workingScheduleId:""
   });
   useEffect(()=>{
     Promise.all([
       api<{items:RefItem[]}>("/postings/departments"),
       api<{items:RefItem[]}>("/postings/sites"),
-      api<{items:RefItem[]}>("/calendar/schedules")
-    ]).then(([d,s,w])=>{setDepartments(d.items);setSites(s.items);setSchedules(w.items);})
+      api<{items:RefItem[]}>("/calendar/schedules"),
+      api<{items:string[]}>("/postings/positions")
+    ]).then(([d,s,w,p])=>{setDepartments(d.items);setSites(s.items);setSchedules(w.items);setPositions(p.items);})
       .catch(e=>setError(e instanceof Error?e.message:"Unable to load reference lists"));
   },[]);
   function set<K extends keyof typeof form>(key:K,value:string){setForm(old=>({...old,[key]:value}));}
@@ -33,7 +35,7 @@ export default function NewEmployeePage(){
     e.preventDefault();setBusy(true);setError("");
     try{
       const payload={...form,originalHireDate:form.originalHireDate,contractStartDate:form.contractStartDate||undefined,contractEndDate:form.contractEndDate||undefined,
-        departmentId:form.departmentId||undefined,workingScheduleId:form.workingScheduleId||undefined,email:form.email||undefined};
+        departmentId:form.departmentId||undefined,currentPosition:form.currentPosition||undefined,workingScheduleId:form.workingScheduleId||undefined,email:form.email||undefined};
       const result=await api<{employee:{id:string}}>("/employees",{method:"POST",body:JSON.stringify(payload)});
       router.push(`/employees/${result.employee.id}`);
     }catch(err){setError(err instanceof Error?err.message:"Could not create employee");}
@@ -56,9 +58,10 @@ export default function NewEmployeePage(){
         {field("Original CIT hire date","originalHireDate","date",true)}
         {form.employmentType==="CONTRACT"&&<>{field("Contract start date","contractStartDate","date",true)}{field("Contract expiry date","contractEndDate","date")}</>}
         <label className="form-field">Department<select value={form.departmentId} onChange={e=>set("departmentId",e.target.value)}><option value="">Select department</option>{departments.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+        <label className="form-field">Position<select value={form.currentPosition} onChange={e=>set("currentPosition",e.target.value)}><option value="">Select position</option>{positions.map(x=><option key={x} value={x}>{x}</option>)}</select></label>
         <label className="form-field">Working schedule<select value={form.workingScheduleId} onChange={e=>set("workingScheduleId",e.target.value)}><option value="">Use standard weekday schedule</option>{schedules.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
       </div></section>
-      <p className="form-hint">After creating the employee record, upload the appointment or posting document, then record the initial position and posting in the employment history.</p>
+      <p className="form-hint">After creating the employee record, upload their appointment letter or contract on the employee profile.</p>
       {error&&<p className="form-error">{error}</p>}
       <div className="form-actions"><Link className="back-link" href="/employees">Cancel</Link><button className="primary-button" disabled={busy}>{busy?"Saving employee…":"Create employee record"}</button></div>
     </form>
