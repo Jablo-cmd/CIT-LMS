@@ -1,5 +1,5 @@
 import express from "express";
-import { createRequire } from "node:module";
+import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
@@ -23,14 +23,14 @@ import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
 import { HttpError } from "./errors.js";
 
-// helmet ships CommonJS with a types file whose default export is resolved differently by tsc and by Vercel's
-// build step (TS2349 "not callable" there). Loading it through require() is identical in every toolchain, and
-// the explicit type keeps the call site checked.
-const helmet: () => express.RequestHandler = createRequire(import.meta.url)("helmet");
-
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
+// Vercel's TypeScript step types helmet's default export as the module namespace (TS2349 "not callable"),
+// while tsc here types it as the function. At runtime Node's ESM interop yields the function either way.
+// The import must stay static: Vercel bundles only packages it can see imported, so loading helmet through
+// createRequire() left it out of the deployment ("Cannot find module 'helmet'" at start-up).
+// @ts-ignore
 app.use(helmet());
 app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
