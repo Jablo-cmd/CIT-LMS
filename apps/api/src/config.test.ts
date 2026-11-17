@@ -4,7 +4,8 @@ import { configSchema } from "./config.js";
 const baseConfig = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://cit_lms:password@db.example.test:5432/cit_lms",
-  JWT_ACCESS_SECRET: "test-only-secret-that-is-long-enough"
+  JWT_ACCESS_SECRET: "test-only-secret-that-is-long-enough",
+  COOKIE_SECURE: "true"
 };
 
 afterEach(() => vi.unstubAllEnvs());
@@ -61,5 +62,24 @@ describe("production configuration", () => {
 
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.MAX_UPLOAD_BYTES).toBe(4_194_304);
+  });
+
+  it("requires secure session cookies in production", () => {
+    const supabase = { STORAGE_DRIVER: "supabase", SUPABASE_URL: "https://cit-lms.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key" };
+    const insecure = configSchema.safeParse({ ...baseConfig, ...supabase, COOKIE_SECURE: "false" });
+    expect(insecure.success).toBe(false);
+    if (!insecure.success) expect(insecure.error.issues.some(issue => issue.path.includes("COOKIE_SECURE"))).toBe(true);
+    expect(configSchema.safeParse({ ...baseConfig, ...supabase, COOKIE_SECURE: "true" }).success).toBe(true);
+  });
+
+  it("only allows SameSite=None cookies when they are also Secure", () => {
+    const result = configSchema.safeParse({ ...baseConfig, NODE_ENV: "development", COOKIE_SAMESITE: "none", COOKIE_SECURE: "false" });
+    expect(result.success).toBe(false);
+    expect(configSchema.safeParse({ ...baseConfig, NODE_ENV: "development", COOKIE_SAMESITE: "none", COOKIE_SECURE: "true" }).success).toBe(true);
+  });
+
+  it("defaults to SameSite=Strict", () => {
+    const result = configSchema.safeParse({ ...baseConfig, NODE_ENV: "development" });
+    expect(result.success && result.data.COOKIE_SAMESITE).toBe("strict");
   });
 });
