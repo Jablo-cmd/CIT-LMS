@@ -113,9 +113,9 @@ Initial posting-site seed data (verify operational details before production use
 
 HR-authorised users can add posting sites later. Keep posting history with start/end dates; do not overwrite previous assignments. Record the manager responsible for each site assignment and preserve relevant manager history.
 
-Initial department/job-title examples from the previous data model may be used as reference values, not assumed to be a final approved master list:
-- Departments: Operations, Cash Services, Client Liaison, IT & Systems, Human Resources, Finance, Compliance & Risk.
-- Job titles: Cash Custodian, Cash Processing Officer, Site Supervisor, Operations Manager, IT Support Technician, HR Officer, HR Manager, Finance Officer, Compliance Officer, Client Liaison Officer.
+Reference values (CIT Business Solutions is an IT company):
+- Departments: Operations, Client Liaison, IT & Systems, Human Resources, Finance, Compliance & Risk.
+- Positions (a fixed list, enforced by the API and served to the app from `GET /api/postings/positions`): Help Desk, IT Technician, Director, Human Resources, Administrator, Network Engineer. Add a position by editing `apps/api/src/positions.ts`.
 
 ## 7. Leave register
 

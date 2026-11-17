@@ -39,7 +39,7 @@ function southAfricanHolidays(year: number) {
 }
 
 async function main() {
-  const departments = ["Operations","Cash Services","Client Liaison","IT & Systems","Human Resources","Finance","Compliance & Risk"];
+  const departments = ["Operations","Client Liaison","IT & Systems","Human Resources","Finance","Compliance & Risk"];
   for (const name of departments) await prisma.department.upsert({ where: { name }, update: {}, create: { name } });
 
   const sites = [
