@@ -119,8 +119,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="layout">
         <aside className="sidebar">
           <Link href="/" className="brand" aria-label="CIT Business Solutions — home">
-            <img src="/brand/cit-logo-white.png" alt="" className="brand-logo" />
-            <div><strong>CIT-LMS</strong><small>People administration</small></div>
+            <img src="/brand/cit-logo-white-tight.png" alt="CIT Business Solutions" className="brand-logo" />
+            <div className="brand-text"><strong>Employee management</strong><small>CIT-LMS · People administration</small></div>
           </Link>
           <nav className="side-nav" aria-label="Main">
             {navGroups.map(group => {

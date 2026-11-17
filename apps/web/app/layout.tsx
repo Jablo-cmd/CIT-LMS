@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource-variable/nunito-sans";
 import "./globals.css";
 import { AppShell } from "../components/AppShell";
 

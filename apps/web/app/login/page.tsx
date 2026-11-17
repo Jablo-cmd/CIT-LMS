@@ -83,7 +83,7 @@ export default function LoginPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <img src="/brand/cit-logo.png" alt="CIT Business Solutions" className="auth-logo" />
+          <img src="/brand/cit-logo-tight.png" alt="CIT Business Solutions" className="auth-logo" />
         </div>
         {!mfaToken ? (
           <>
