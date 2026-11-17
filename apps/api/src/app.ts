@@ -21,6 +21,7 @@ import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
+import { verifyPrivateBucket } from "./services/document-storage.js";
 import { HttpError } from "./errors.js";
 
 export const app = express();
@@ -43,6 +44,19 @@ app.use("/api/users/:id/reset-password", rateLimit({ windowMs: 15 * 60 * 1000, l
 app.get("/api/health", async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; return res.json({ status: "ok", database: "connected", service: "cit-lms-api" }); }
   catch { return res.status(503).json({ status: "unavailable", database: "unavailable", service: "cit-lms-api" }); }
+});
+// On Vercel the platform loads this module directly and server.ts (which verifies the document bucket at
+// start-up) never runs. Verify once per instance on first use instead, and fail closed if it is not private.
+let bucketVerification: Promise<void> | undefined;
+app.use("/api", async (_req, _res, next) => {
+  try {
+    bucketVerification ??= verifyPrivateBucket();
+    await bucketVerification;
+    return next();
+  } catch (error) {
+    bucketVerification = undefined;
+    return next(error);
+  }
 });
 app.use("/api/auth", authRouter);
 app.use("/api", requireAuth);
@@ -71,3 +85,6 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
   if (config.NODE_ENV !== "production") console.error(err);
   return res.status(500).json({ error: "An unexpected server error occurred" });
 });
+
+// Vercel requires the entry module to default-export the Express app.
+export default app;
