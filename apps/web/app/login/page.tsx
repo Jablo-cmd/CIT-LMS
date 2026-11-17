@@ -83,13 +83,11 @@ export default function LoginPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <img src="/brand/cit-logo.png" alt="CIT Business Solutions" className="auth-logo" />
+          <img src="/brand/cit-logo-tight.png" alt="CIT Business Solutions" className="auth-logo" />
         </div>
         {!mfaToken ? (
           <>
-            <p className="eyebrow">SECURE WORKSPACE</p>
             <h1>Sign in</h1>
-            <p className="auth-intro">Sign in with your individual CIT-LMS account.</p>
             {expired && !error && <p className="form-notice" role="status">Your session has ended. Please sign in again to continue.</p>}
             <form onSubmit={submitPassword} className="auth-form">
               <label>

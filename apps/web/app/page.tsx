@@ -66,7 +66,7 @@ export default function HomePage() {
           <h2>One reliable record for every employee.</h2>
           <p>Manage employee information through controlled access, clear records and a traceable history of every change.</p>
         </div>
-        <img src="/brand/cit-logo-white.png" alt="" className="welcome-logo" />
+        <img src="/brand/cit-logo-white-tight.png" alt="" className="welcome-logo" />
       </section>
       <div className="stats-grid">
         <article className="stat-card"><span>EMPLOYEE RECORDS</span><strong>{loading ? "…" : employeeCount ?? "—"}</strong><small>Current directory count</small></article>
