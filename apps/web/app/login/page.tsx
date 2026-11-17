@@ -87,7 +87,6 @@ export default function LoginPage() {
         </div>
         {!mfaToken ? (
           <>
-            <h1>Sign in</h1>
             {expired && !error && <p className="form-notice" role="status">Your session has ended. Please sign in again to continue.</p>}
             <form onSubmit={submitPassword} className="auth-form">
               <label>
