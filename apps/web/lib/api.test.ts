@@ -29,4 +29,16 @@ describe("API URL construction", () => {
     expect(API_URL).toBe("https://cit-lms-api.vercel.app/api");
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://cit-lms-api.vercel.app/api/employees?active=true");
   });
+
+  it("supports a same-origin proxy path so the browser never calls the API cross-site", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "/api");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { api, API_URL } = await import("./api");
+
+    await api("/auth/me");
+
+    expect(API_URL).toBe("/api");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/auth/me");
+  });
 });

@@ -9,6 +9,10 @@ export const configSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_ACCESS_TTL: z.string().default("15m"),
   COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
+  // Use "strict" or "lax" when the browser reaches the API same-origin (for example through the
+  // web app's /api proxy or a shared parent domain). "none" is only for genuinely cross-site hosts
+  // and requires COOKIE_SECURE=true; note that many browsers block third-party cookies.
+  COOKIE_SAMESITE: z.enum(["strict", "lax", "none"]).default("strict"),
   STORAGE_DRIVER: z.enum(["local", "supabase"]).default("local"),
   STORAGE_ROOT: z.string().default("./storage"),
   SUPABASE_URL: z.string().url().optional(),
@@ -16,6 +20,12 @@ export const configSchema = z.object({
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default("cit-lms-documents"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(() => process.env.VERCEL === "1" ? 4_194_304 : 10_485_760)
 }).superRefine((value, ctx) => {
+  if (value.NODE_ENV === "production" && value.COOKIE_SECURE !== "true") {
+    ctx.addIssue({ code: "custom", path: ["COOKIE_SECURE"], message: "Production requires COOKIE_SECURE=true so session cookies are only sent over HTTPS" });
+  }
+  if (value.COOKIE_SAMESITE === "none" && value.COOKIE_SECURE !== "true") {
+    ctx.addIssue({ code: "custom", path: ["COOKIE_SAMESITE"], message: "SameSite=None cookies require COOKIE_SECURE=true" });
+  }
   if (value.NODE_ENV === "production" && value.STORAGE_DRIVER !== "supabase") {
     ctx.addIssue({ code: "custom", path: ["STORAGE_DRIVER"], message: "Production requires private Supabase Storage" });
   }

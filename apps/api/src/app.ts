@@ -1,9 +1,9 @@
 import express from "express";
-import helmet from "helmet";
+import { createRequire } from "node:module";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { ZodError } from "zod";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
@@ -21,6 +21,12 @@ import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { requireAuth } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
+import { HttpError } from "./errors.js";
+
+// helmet ships CommonJS with a types file whose default export is resolved differently by tsc and by Vercel's
+// build step (TS2349 "not callable" there). Loading it through require() is identical in every toolchain, and
+// the explicit type keeps the call site checked.
+const helmet: () => express.RequestHandler = createRequire(import.meta.url)("helmet");
 
 export const app = express();
 app.disable("x-powered-by");
@@ -52,6 +58,7 @@ app.use("/api/calendar", calendarRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/audit", auditRouter);
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
   if (err instanceof ZodError) return res.status(400).json({ error: "Validation failed", details: err.issues });
   if (typeof err === "object" && err !== null && "code" in err) {
     if (err.code === "P2002") return res.status(409).json({ error: "A record with this unique value already exists" });

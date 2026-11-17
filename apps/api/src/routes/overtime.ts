@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 import { allowRoles } from "../middleware/auth.js";
 import { writeAudit } from "../middleware/audit.js";
 import { calculateElapsedHours } from "../services/time-calculation.js";
+import { optionalDate } from "../validation.js";
 
 
 export const overtimeRouter = Router();
@@ -13,8 +14,8 @@ overtimeRouter.get("/", allStaff, async (req, res, next) => {
   try {
     const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : undefined;
     const postingSiteId = typeof req.query.postingSiteId === "string" ? req.query.postingSiteId : undefined;
-    const from = typeof req.query.from === "string" ? new Date(req.query.from) : undefined;
-    const to = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
+    const from = optionalDate.parse(req.query.from) as Date | undefined;
+    const to = optionalDate.parse(req.query.to) as Date | undefined;
     const items = await prisma.overtimeEntry.findMany({
       where: { ...(employeeId ? { employeeId } : {}), ...(postingSiteId ? { postingSiteId } : {}), ...(from || to ? { workDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) },
       include: { employee: { select: { employeeNumber: true, firstName: true, lastName: true } }, postingSite: true, capturedBy: { select: { fullName: true } }, documents: { select: { id:true, title:true, category:true, originalName:true, uploadedAt:true } } },

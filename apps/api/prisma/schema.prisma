@@ -69,6 +69,8 @@ model User {
   fullName      String
   passwordHash  String
   tokenVersion  Int      @default(0)
+  failedLoginCount Int   @default(0)
+  lockedUntil   DateTime?
   role          UserRole
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
@@ -125,6 +127,7 @@ model Employee {
   @@index([employmentStatus])
   @@index([currentPosition])
   @@index([currentPostingId])
+  @@index([departmentId])
 }
 
 model Department {
@@ -185,6 +188,7 @@ model NextOfKin {
   isPrimary    Boolean @default(false)
   notes        String?
   employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId])
 }
 
 model EmployeeDocument {
@@ -206,6 +210,7 @@ model EmployeeDocument {
   overtimeFiles   OvertimeEntry[]
   disciplinary    DisciplinaryRecord[]
   recommendations Recommendation[]
+  @@index([employeeId])
 }
 
 model WorkingSchedule {
@@ -269,6 +274,7 @@ model LeaveTransaction {
   documents          EmployeeDocument[]
   @@index([employeeId, category, capturedAt])
   @@unique([employeeId, category, referenceNumber])
+  @@index([policyId])
 }
 
 model OvertimeEntry {
@@ -288,6 +294,7 @@ model OvertimeEntry {
   capturedBy     User @relation("OvertimeCapturedBy", fields: [capturedById], references: [id])
   documents      EmployeeDocument[]
   @@index([workDate, employeeId])
+  @@index([employeeId])
 }
 
 model DisciplinaryRecord {

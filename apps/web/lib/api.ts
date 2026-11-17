@@ -1,10 +1,12 @@
 "use client";
 
+// NEXT_PUBLIC_API_URL may be absolute (local development) or a same-origin path such as "/api",
+// which the Next.js rewrite in next.config.ts forwards to the API (the recommended production setup).
 const configuredApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 const API_BASE_URL = configuredApiUrl.endsWith("/api") ? configuredApiUrl : `${configuredApiUrl}/api`;
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const url = new URL(path.replace(/^\/+/, ""), `${API_BASE_URL}/`);
+  const url = `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
   const headers = new Headers(init.headers ?? {});
   const method = (init.method ?? "GET").toUpperCase();
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
@@ -13,7 +15,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await fetch(url, {
     ...init,
     method,
     headers,

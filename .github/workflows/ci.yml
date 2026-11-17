@@ -62,6 +62,8 @@ jobs:
         run: |
           npm audit --json > npm-audit.json || true
           node -e "const a=require('./npm-audit.json'); for (const [n,v] of Object.entries(a.vulnerabilities||{})) console.log(n, v.severity, 'range='+v.range, 'fix='+JSON.stringify(v.fixAvailable))"
+      - name: Fail on high or critical advisories
+        run: npm audit --audit-level=high
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
