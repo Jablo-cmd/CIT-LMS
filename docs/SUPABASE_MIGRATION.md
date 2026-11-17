@@ -25,3 +25,18 @@ The final architecture keeps Prisma and the Express API as the system source of 
 The API requires `STORAGE_DRIVER=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` in production. It validates that the bucket exists and is not public before listening. The service-role key must never be set in the web app. Downloads are authorized by Express, fetched through an internally generated 60-second signed URL, and proxied to the caller.
 
 This keeps the platform choice flexible without creating a second auth or data layer in the application.
+
+
+## Production database status (cit-lms project)
+
+- The earlier Supabase-native schema (a `profiles` table, RLS policies and `SECURITY DEFINER` RPC functions, some of them callable by anonymous users) was removed. It was empty and is not used by this application.
+- The Prisma migrations were applied and recorded in `_prisma_migrations`, so `npm run db:deploy --workspace @cit-lms/api` treats the database as up to date and applies only new migrations.
+- Reference data (departments, posting sites, the standard schedule and public holidays to 2035) was loaded and verified against the output of `prisma/seed.ts`.
+- `docs/supabase-lockdown.sql` was applied: row level security is on for every table and the `anon` / `authenticated` roles have no privileges, so the Supabase Data API exposes nothing. Re-run it if you ever add tables outside Prisma, then check the Supabase security advisors.
+- A private `cit-lms-documents` bucket exists. The API verifies at start-up that it is private.
+
+## Connection strings
+
+- **API runtime (Vercel):** use the Supabase **connection pooler** string (transaction mode, port 6543) as `DATABASE_URL`. Serverless functions open many short-lived connections, and the direct host is IPv6-only unless the IPv4 add-on is enabled.
+- **Migrations:** run `prisma migrate deploy` from a trusted machine with the **direct** or **session-mode** string. Do not run migrations through the transaction pooler.
+- Never commit either string. Rotate the database password if it has ever been shared in chat or a ticket.

@@ -49,9 +49,11 @@ For local development leave `API_PROXY_TARGET` unset and use `NEXT_PUBLIC_API_UR
 
 ## Database migrations and first account
 
-Apply Prisma migrations to the production database before the first production API deployment. Run `npm run db:deploy --workspace @cit-lms/api` from a trusted environment configured with the production `DATABASE_URL`; do not commit that connection string. Seed reference data with `npm run db:seed --workspace @cit-lms/api`, then create the Company Owner once with `npm run owner:bootstrap --workspace @cit-lms/api`.
+The `cit-lms` Supabase project already has the Prisma migrations applied, the reference data loaded and the Data API locked down (see `SUPABASE_MIGRATION.md`). For any later migration, run `npm run db:deploy --workspace @cit-lms/api` from a trusted environment with the **direct** database connection string; do not commit it.
 
-Vercel deploys do not run the API's local `start` script, so migrations must be applied as a separate release step. Never run `prisma migrate reset` against production.
+Vercel deploys do not run migrations, so schema changes are always a separate release step. Never run `prisma migrate reset` against production.
+
+Create the Company Owner once, from a trusted machine with the production `DATABASE_URL`, using `npm run owner:bootstrap --workspace @cit-lms/api`. It prompts for the password interactively and refuses to run if any user already exists. Use a unique password of at least 14 characters from a password manager.
 
 ## Production smoke test
 
