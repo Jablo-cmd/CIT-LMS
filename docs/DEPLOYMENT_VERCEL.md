@@ -26,6 +26,8 @@ Configure these only on the **CIT-LMS API** project:
 | `COOKIE_SECURE` | `true` (the API refuses to start in production otherwise) |
 | `COOKIE_SAMESITE` | `strict` (default). Use `none` only if the browser calls the API cross-site, which is not recommended |
 | `WEB_ORIGIN` | Exact production web origin, with no trailing slash |
+| `MFA_ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts authenticator secrets at rest. **Required**: the API refuses to start in production without it. Store it as a *sensitive* variable and keep a copy in your password manager; losing or changing it makes every enrolled authenticator unusable (owners can then reset MFA, see below) |
+| `MFA_REQUIRED` | Leave unset. Production defaults to `true`, and the API refuses to start if it is set to `false` |
 | `STORAGE_DRIVER` | `supabase` |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase secret |
@@ -64,3 +66,17 @@ Create the Company Owner once, from a trusted machine with the production `DATAB
 - Verify Supabase bucket remains private and backups/retention are configured.
 
 Local files in `apps/api/storage` are not copied automatically to Supabase. Migrate any files that must be retained and preserve their object keys before switching an existing database to Supabase Storage.
+
+## Two-step verification (MFA)
+
+Every account must use an authenticator app (Microsoft/Google Authenticator or any TOTP app) in production.
+
+- **First sign-in:** a user without MFA can sign in with their password but can only reach the *Security* page until they have scanned the QR code, confirmed a code and saved their ten one-time recovery codes. This applies to the Company Owner created by `owner:bootstrap` too.
+- **Every sign-in after that** asks for the 6-digit code (or a recovery code). Wrong codes count towards the same 5-attempt, 15-minute lockout as wrong passwords, and a code cannot be used twice.
+- **Lost phone:** a Company Owner opens *User administration* and chooses *Reset 2-step* for that person; they sign in with their password and enrol again. Their old sessions are ended.
+- **The only owner is locked out** (no authenticator, no recovery codes): run this on a trusted machine with the production `DATABASE_URL` (direct connection):
+  ```bash
+  npm run owner:reset-mfa --workspace @cit-lms/api -- owner@example.com
+  ```
+- **Rotating `MFA_ENCRYPTION_KEY`** invalidates every stored authenticator secret. Reset MFA for all users afterwards, or avoid rotating it.
+- Enrolment is open to anyone holding a correct password who has not enrolled yet, so enrol new accounts promptly (the owner should do it immediately after bootstrap).

@@ -19,7 +19,7 @@ import { documentsRouter } from "./routes/documents.js";
 import { calendarRouter } from "./routes/calendar.js";
 import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
-import { requireAuth } from "./middleware/auth.js";
+import { requireAuth, requireMfaEnrolled } from "./middleware/auth.js";
 import { protectCookieMutations } from "./middleware/csrf.js";
 import { verifyPrivateBucket } from "./services/document-storage.js";
 import { HttpError } from "./errors.js";
@@ -40,6 +40,7 @@ app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api", protectCookieMutations);
 app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/auth/change-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/auth/mfa/verify", rateLimit({ windowMs: 15 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/users/:id/reset-password", rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false }));
 app.get("/api/health", async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; return res.json({ status: "ok", database: "connected", service: "cit-lms-api" }); }
@@ -59,7 +60,7 @@ app.use("/api", async (_req, _res, next) => {
   }
 });
 app.use("/api/auth", authRouter);
-app.use("/api", requireAuth);
+app.use("/api", requireAuth, requireMfaEnrolled);
 app.use("/api/users", usersRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/leave", leaveRouter);

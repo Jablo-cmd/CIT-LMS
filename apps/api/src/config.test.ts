@@ -5,7 +5,8 @@ const baseConfig = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://cit_lms:password@db.example.test:5432/cit_lms",
   JWT_ACCESS_SECRET: "test-only-secret-that-is-long-enough",
-  COOKIE_SECURE: "true"
+  COOKIE_SECURE: "true",
+  MFA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64")
 };
 
 afterEach(() => vi.unstubAllEnvs());
@@ -81,5 +82,25 @@ describe("production configuration", () => {
   it("defaults to SameSite=Strict", () => {
     const result = configSchema.safeParse({ ...baseConfig, NODE_ENV: "development" });
     expect(result.success && result.data.COOKIE_SAMESITE).toBe("strict");
+  });
+
+  it("requires an MFA encryption key in production", () => {
+    const supabase = { STORAGE_DRIVER: "supabase", SUPABASE_URL: "https://cit-lms.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key" };
+    const { MFA_ENCRYPTION_KEY: _omit, ...withoutKey } = baseConfig;
+    const result = configSchema.safeParse({ ...withoutKey, ...supabase });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.some(issue => issue.path.includes("MFA_ENCRYPTION_KEY"))).toBe(true);
+  });
+
+  it("rejects an MFA encryption key that is not 32 bytes", () => {
+    const result = configSchema.safeParse({ ...baseConfig, NODE_ENV: "development", MFA_ENCRYPTION_KEY: Buffer.alloc(16, 1).toString("base64") });
+    expect(result.success).toBe(false);
+  });
+
+  it("does not allow MFA to be switched off in production", () => {
+    const supabase = { STORAGE_DRIVER: "supabase", SUPABASE_URL: "https://cit-lms.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key" };
+    const result = configSchema.safeParse({ ...baseConfig, ...supabase, MFA_REQUIRED: "false" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.some(issue => issue.path.includes("MFA_REQUIRED"))).toBe(true);
   });
 });
