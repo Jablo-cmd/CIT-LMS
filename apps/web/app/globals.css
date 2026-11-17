@@ -135,3 +135,11 @@ input[type=checkbox],input[type=radio]{accent-color:var(--orange)}
 .notfound-card .primary-link{display:inline-flex}
 @media(max-width:900px){.brand{flex-direction:row;align-items:center;padding:0 0 10px}.brand-logo{width:78px}.brand-text strong{font-size:11px}}
 
+/* centred brand on the sign-in and error cards */
+.auth-brand{display:flex;justify-content:center;margin-bottom:34px}
+.auth-card .eyebrow,.auth-card h1,.auth-card .auth-intro{text-align:center}
+.auth-card .form-notice{text-align:center}
+.notfound-card{text-align:center}
+.notfound-card .auth-logo{display:block;margin:0 auto}
+.notfound-card .primary-link,.notfound-card .primary-button{margin:0 auto}
+
