@@ -13,9 +13,7 @@ export const configSchema = z.object({
   // 32 random bytes, base64-encoded (for example `openssl rand -base64 32`). Encrypts MFA secrets at rest and is
   // deliberately separate from JWT_ACCESS_SECRET so rotating one never breaks the other. Required in production.
   MFA_ENCRYPTION_KEY: z.string().optional(),
-  // Whether every account must enrol in MFA. Defaults to on in production and off elsewhere. Setting it to "false" in
-  // production is a deliberate, temporary opt-out: the API starts, logs a warning on every start, and accounts that
-  // are already enrolled keep using their codes.
+  // Whether every account must enrol in MFA. Defaults to on in production and off elsewhere.
   MFA_REQUIRED: z.enum(["true", "false"]).optional(),
   MFA_ISSUER: z.string().trim().min(1).max(60).default("CIT-LMS"),
   // Use "strict" or "lax" when the browser reaches the API same-origin (for example through the
@@ -34,6 +32,9 @@ export const configSchema = z.object({
   }
   if (value.NODE_ENV === "production" && !value.MFA_ENCRYPTION_KEY) {
     ctx.addIssue({ code: "custom", path: ["MFA_ENCRYPTION_KEY"], message: "Production requires MFA_ENCRYPTION_KEY" });
+  }
+  if (value.NODE_ENV === "production" && value.MFA_REQUIRED === "false") {
+    ctx.addIssue({ code: "custom", path: ["MFA_REQUIRED"], message: "Production requires multi-factor authentication for every account" });
   }
   if (value.NODE_ENV === "production" && value.COOKIE_SECURE !== "true") {
     ctx.addIssue({ code: "custom", path: ["COOKIE_SECURE"], message: "Production requires COOKIE_SECURE=true so session cookies are only sent over HTTPS" });
