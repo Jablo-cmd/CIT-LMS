@@ -97,10 +97,12 @@ describe("production configuration", () => {
     expect(result.success).toBe(false);
   });
 
-  it("does not allow MFA to be switched off in production", () => {
+  it("allows MFA to be switched off in production only through the explicit setting", () => {
     const supabase = { STORAGE_DRIVER: "supabase", SUPABASE_URL: "https://cit-lms.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key" };
-    const result = configSchema.safeParse({ ...baseConfig, ...supabase, MFA_REQUIRED: "false" });
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.issues.some(issue => issue.path.includes("MFA_REQUIRED"))).toBe(true);
+    expect(configSchema.safeParse({ ...baseConfig, ...supabase, MFA_REQUIRED: "false" }).success).toBe(true);
+    // the encryption key is still mandatory, so already-enrolled accounts keep working
+    const { MFA_ENCRYPTION_KEY: _omit, ...withoutKey } = baseConfig;
+    expect(configSchema.safeParse({ ...withoutKey, ...supabase, MFA_REQUIRED: "false" }).success).toBe(false);
   });
+
 });

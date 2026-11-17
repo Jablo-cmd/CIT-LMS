@@ -25,6 +25,9 @@ import { verifyPrivateBucket } from "./services/document-storage.js";
 import { HttpError } from "./errors.js";
 
 export const app = express();
+if (config.NODE_ENV === "production" && !config.mfaRequired) {
+  console.warn("[security] MFA_REQUIRED=false: multi-factor authentication is NOT being enforced. Set MFA_REQUIRED=true (or remove it) to enforce it again.");
+}
 app.disable("x-powered-by");
 app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
 // Vercel's TypeScript step types helmet's default export as the module namespace (TS2349 "not callable"),

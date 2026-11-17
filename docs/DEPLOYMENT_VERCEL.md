@@ -27,7 +27,7 @@ Configure these only on the **CIT-LMS API** project:
 | `COOKIE_SAMESITE` | `strict` (default). Use `none` only if the browser calls the API cross-site, which is not recommended |
 | `WEB_ORIGIN` | Exact production web origin, with no trailing slash |
 | `MFA_ENCRYPTION_KEY` | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts authenticator secrets at rest. **Required**: the API refuses to start in production without it. Store it as a *sensitive* variable and keep a copy in your password manager; losing or changing it makes every enrolled authenticator unusable (owners can then reset MFA, see below) |
-| `MFA_REQUIRED` | Leave unset. Production defaults to `true`, and the API refuses to start if it is set to `false` |
+| `MFA_REQUIRED` | Leave unset. Production defaults to `true`. Setting it to `false` is a deliberate, temporary opt-out: the API logs a warning on every start and users who already enrolled still use their codes. Remove it (or set `true`) and redeploy to enforce MFA again; anyone whose authenticator was cleared enrols again at their next sign-in |
 | `STORAGE_DRIVER` | `supabase` |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase secret |
