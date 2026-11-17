@@ -2,7 +2,9 @@ import "dotenv/config";
 import argon2 from "argon2";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db.js";
+import * as OTPAuth from "otpauth";
 import { getObject } from "../services/document-storage.js";
+import { signMfaToken } from "../services/mfa.js";
 
 const base = process.env.SMOKE_API_URL ?? "http://127.0.0.1:4000/api";
 const trustedOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
@@ -261,6 +263,71 @@ async function main() {
   const audit = await request("/audit", ownerCookie);
   assert(audit.payload.items.length > 0, "owner must be able to inspect audit events");
 
+  // ---- Multi-factor authentication: full lifecycle with real TOTP codes ----
+  const mfaEmail = `mfa-${suffix}@cit-lms.test`;
+  const mfaPassword = `CIT-LMS-CI-${randomUUID()}-M5!`;
+  const mfaUser = await prisma.user.create({ data: { email: mfaEmail, fullName: "CI MFA User", passwordHash: await argon2.hash(mfaPassword), role: "HR_MANAGER" } });
+  const cookieOf = (response: Response) => response.headers.get("set-cookie")!.split(";")[0];
+  const tokenVersion = async () => (await prisma.user.findUniqueOrThrow({ where: { id: mfaUser.id } })).tokenVersion;
+  const challengeFor = async () => signMfaToken(mfaUser.id, await tokenVersion());
+
+  const preMfaCookie = await login(mfaEmail, mfaPassword);
+  const status0 = await request("/auth/mfa/status", preMfaCookie);
+  assert(status0.payload.enabled === false && status0.payload.required === false, "MFA starts off, and is optional outside production");
+  await request("/auth/mfa/enable", preMfaCookie, "POST", { code: "123456" }, 400);
+  const setup = await request("/auth/mfa/setup", preMfaCookie, "POST", {});
+  assert(String(setup.payload.qrDataUrl).startsWith("data:image/png;base64,") && String(setup.payload.otpauthUri).startsWith("otpauth://totp/"), "setup must return a scannable QR code");
+  const totp = new OTPAuth.TOTP({ algorithm: "SHA1", digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(setup.payload.secret) });
+  const storedSecret = (await prisma.user.findUniqueOrThrow({ where: { id: mfaUser.id } })).mfaSecretEnc;
+  assert(!!storedSecret && !storedSecret.includes(setup.payload.secret), "the TOTP secret must be encrypted at rest");
+  await request("/auth/mfa/enable", preMfaCookie, "POST", { code: "000000" }, 400);
+  const enabled = await request("/auth/mfa/enable", preMfaCookie, "POST", { code: totp.generate() });
+  assert(Array.isArray(enabled.payload.recoveryCodes) && enabled.payload.recoveryCodes.length === 10, "enabling MFA must issue ten recovery codes");
+  const mfaCookie = cookieOf(enabled.response);
+  await request("/auth/me", preMfaCookie, "GET", undefined, 401);
+  assert((await request("/auth/me", mfaCookie)).payload.mfaEnabled === true, "the re-issued session is fully verified");
+
+  const challenge = await request("/auth/login", undefined, "POST", { email: mfaEmail, password: mfaPassword });
+  assert(challenge.payload.mfaRequired === true && !!challenge.payload.mfaToken && !challenge.response.headers.get("set-cookie"), "with MFA on, the password alone must not create a session");
+  await request("/auth/me", `cit_session=${challenge.payload.mfaToken}`, "GET", undefined, 401);
+  await request("/auth/mfa/verify", undefined, "POST", { mfaToken: challenge.payload.mfaToken, code: "000000" }, 401);
+  const nextCode = totp.generate({ timestamp: Date.now() + 30_000 });
+  const verified = await request("/auth/mfa/verify", undefined, "POST", { mfaToken: challenge.payload.mfaToken, code: nextCode });
+  const verifiedCookie = cookieOf(verified.response);
+  await request("/auth/me", verifiedCookie);
+  await request("/auth/mfa/verify", undefined, "POST", { mfaToken: await challengeFor(), code: nextCode }, 401);
+
+  const [recoveryCode, secondRecoveryCode] = enabled.payload.recoveryCodes as string[];
+  const viaRecovery = await request("/auth/mfa/verify", undefined, "POST", { mfaToken: await challengeFor(), recoveryCode });
+  assert(viaRecovery.payload.recoveryCodesRemaining === 9, "a recovery code works once");
+  await request("/auth/mfa/verify", undefined, "POST", { mfaToken: await challengeFor(), recoveryCode }, 401);
+
+  const freshCode = async () => { await prisma.user.update({ where: { id: mfaUser.id }, data: { mfaLastStep: null } }); return totp.generate(); };
+  const regenerated = await request("/auth/mfa/recovery-codes", verifiedCookie, "POST", { code: await freshCode() });
+  assert(regenerated.payload.recoveryCodes.length === 10, "recovery codes can be regenerated with a current code");
+  await request("/auth/mfa/verify", undefined, "POST", { mfaToken: await challengeFor(), recoveryCode: secondRecoveryCode }, 401);
+
+  await prisma.user.update({ where: { id: mfaUser.id }, data: { failedLoginCount: 0 } });
+  for (let attempt = 0; attempt < 5; attempt++) await request("/auth/mfa/verify", undefined, "POST", { mfaToken: await challengeFor(), code: "000000" }, 401);
+  await request("/auth/mfa/verify", undefined, "POST", { mfaToken: await challengeFor(), recoveryCode: regenerated.payload.recoveryCodes[0] }, 429);
+  await prisma.user.update({ where: { id: mfaUser.id }, data: { failedLoginCount: 0, lockedUntil: null } });
+
+  await request("/auth/mfa/disable", verifiedCookie, "POST", { password: "not-the-password", code: await freshCode() }, 400);
+  const disabled = await request("/auth/mfa/disable", verifiedCookie, "POST", { password: mfaPassword, code: await freshCode() });
+  const noMfaCookie = cookieOf(disabled.response);
+  assert((await request("/auth/me", noMfaCookie)).payload.mfaEnabled === false, "MFA can be turned off where policy allows");
+  await request("/auth/me", verifiedCookie, "GET", undefined, 401);
+
+  const setup2 = await request("/auth/mfa/setup", noMfaCookie, "POST", {});
+  const totp2 = new OTPAuth.TOTP({ algorithm: "SHA1", digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(setup2.payload.secret) });
+  const enabledAgain = await request("/auth/mfa/enable", noMfaCookie, "POST", { code: totp2.generate() });
+  await request(`/users/${mfaUser.id}/reset-mfa`, hrCookie, "POST", {}, 403);
+  await request(`/users/${mfaUser.id}/reset-mfa`, ownerCookie, "POST", {});
+  await request("/auth/me", cookieOf(enabledAgain.response), "GET", undefined, 401);
+  const reset = await prisma.user.findUniqueOrThrow({ where: { id: mfaUser.id } });
+  assert(!reset.mfaEnabled && !reset.mfaSecretEnc && (await prisma.mfaRecoveryCode.count({ where: { userId: mfaUser.id } })) === 0, "an owner reset clears MFA and its recovery codes");
+  assert(!!(await prisma.auditLog.findFirst({ where: { entityId: mfaUser.id, action: "MFA_RESET" } })), "an MFA reset is audited");
+
   const changedPassword = `CIT-HR-CHANGED-${randomUUID()}-D9!`;
   await request("/auth/change-password", hrCookie, "POST", { currentPassword: hrPassword, newPassword: changedPassword });
   await request("/auth/me", hrCookie, "GET", undefined, 401);
@@ -270,7 +337,7 @@ async function main() {
   await request("/auth/logout", ownerCookie, "POST", undefined, 204);
   await request("/auth/me", ownerCookie, "GET", undefined, 401);
 
-  console.log("CIT-LMS integration smoke test passed: authentication, roles, employee records, documents, history, leave, overtime, disciplinary access and audit.");
+  console.log("CIT-LMS integration smoke test passed: authentication and multi-factor authentication, roles, employee records, documents, history, leave, overtime, disciplinary access and audit.");
 }
 
 main().catch(error => {

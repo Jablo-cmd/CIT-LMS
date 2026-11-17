@@ -7,7 +7,7 @@ const API_BASE_URL = configuredApiUrl.endsWith("/api") ? configuredApiUrl : `${c
 
 /** An API failure that carries the HTTP status so callers can react to it (for example a 401). */
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = "ApiError";
   }
@@ -47,9 +47,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     window.location.assign("/login?expired=1");
   }
 
+  const errorCode = typeof payload === "object" && payload && "code" in payload ? String((payload as { code?: unknown }).code) : undefined;
+  if (response.status === 403 && errorCode === "MFA_SETUP_REQUIRED" && typeof window !== "undefined" && window.location.pathname !== "/account/security") {
+    // The account must enrol in multi-factor authentication before it can use anything else.
+    window.location.assign("/account/security");
+  }
+
   if (!response.ok) {
     const message = typeof payload === "object" && payload && "error" in payload ? String((payload as { error?: string }).error ?? "Request failed") : `Request failed (${response.status})`;
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, errorCode);
   }
 
   return (payload ?? undefined) as T;

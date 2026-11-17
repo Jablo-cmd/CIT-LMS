@@ -71,6 +71,11 @@ model User {
   tokenVersion  Int      @default(0)
   failedLoginCount Int   @default(0)
   lockedUntil   DateTime?
+  mfaEnabled    Boolean  @default(false)
+  mfaSecretEnc  String?
+  mfaLastStep   Int?
+  mfaEnrolledAt DateTime?
+  mfaRecoveryCodes MfaRecoveryCode[]
   role          UserRole
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
@@ -84,6 +89,17 @@ model User {
   disciplinaryRecords DisciplinaryRecord[] @relation("DisciplinaryCapturedBy")
   recommendations Recommendation[] @relation("RecommendationCapturedBy")
   leavePoliciesCreated LeavePolicy[] @relation("LeavePolicyCreatedBy")
+}
+
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, codeHash])
+  @@index([userId])
 }
 
 model Employee {

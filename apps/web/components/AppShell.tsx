@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "../lib/api";
 
-export type SessionUser = { id: string; fullName: string; email: string; role: string };
+export type SessionUser = { id: string; fullName: string; email: string; role: string; mfaEnabled?: boolean; mfaEnrollmentRequired?: boolean };
 
 const SessionContext = createContext<SessionUser | null>(null);
 
@@ -21,7 +21,7 @@ const notAdminPersonnel = (role: string) => role === "ADMIN_PERSONNEL";
 const notOwner = (role: string) => role !== "COMPANY_OWNER";
 
 export const navGroups: NavGroup[] = [
-  { heading: "WORKSPACE", items: [{ label: "Overview", href: "/" }, { label: "My account", href: "/account" }] },
+  { heading: "WORKSPACE", items: [{ label: "Overview", href: "/" }, { label: "My account", href: "/account" }, { label: "Security", href: "/account/security" }] },
   { heading: "PEOPLE", items: [
     { label: "Employees", href: "/employees" },
     { label: "Documents", href: "/documents" },
@@ -54,7 +54,9 @@ export function roleLabel(role: string) {
 }
 
 function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  if (href === "/") return pathname === "/";
+  if (href === "/account") return pathname === "/account";
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 type Health = "checking" | "online" | "offline";
@@ -90,15 +92,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (bare) return;
     let active = true;
-    api<{ user: SessionUser }>("/auth/me")
-      .then(result => { if (active) setUser(result.user); })
+    api<{ user: SessionUser; mfaEnabled: boolean; mfaEnrollmentRequired: boolean }>("/auth/me")
+      .then(result => {
+        if (!active) return;
+        setUser({ ...result.user, mfaEnabled: result.mfaEnabled, mfaEnrollmentRequired: result.mfaEnrollmentRequired });
+        // Until two-step verification is set up, the only page that works is the one that sets it up.
+        if (result.mfaEnrollmentRequired && window.location.pathname !== "/account/security") router.replace("/account/security");
+      })
       .catch(() => { /* a 401 is redirected to /login by the API client; other failures leave pages to show their own errors */ });
     return () => { active = false; };
-  }, [bare]);
+  }, [bare, router]);
 
   if (bare) return <>{children}</>;
 
   const role = user?.role ?? "";
+  const enrolling = !!user?.mfaEnrollmentRequired;
   const current = navGroups.flatMap(group => group.items).find(item => isActive(pathname, item.href));
   const initials = (user?.fullName ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join("");
 
@@ -116,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <nav className="side-nav" aria-label="Main">
             {navGroups.map(group => {
-              const items = group.items.filter(item => !(user && item.hideFor?.(role)));
+              const items = group.items.filter(item => !(user && item.hideFor?.(role)) && (!enrolling || item.href === "/account/security"));
               if (!items.length) return null;
               return (
                 <div className="nav-group" key={group.heading}>

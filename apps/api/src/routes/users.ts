@@ -10,7 +10,7 @@ usersRouter.use(isOwner);
 
 usersRouter.get("/", async (_req, res, next) => {
   try {
-    const users = await prisma.user.findMany({ select: { id: true, email: true, fullName: true, role: true, isActive: true, lastLoginAt: true, createdAt: true }, orderBy: { fullName: "asc" } });
+    const users = await prisma.user.findMany({ select: { id: true, email: true, fullName: true, role: true, isActive: true, lastLoginAt: true, createdAt: true, mfaEnabled: true }, orderBy: { fullName: "asc" } });
     return res.json({ items: users });
   } catch (e) { return next(e); }
 });
@@ -58,5 +58,17 @@ usersRouter.patch("/:id", async (req, res, next) => {
     const user = await prisma.user.update({ where: { id: String(req.params.id) }, data: input, select: { id: true, email: true, fullName: true, role: true, isActive: true } });
     await writeAudit(req, "UPDATE", "User", user.id, before, user);
     return res.json({ user });
+  } catch (e) { return next(e); }
+});
+
+/** Lost phone or authenticator: clears MFA so the person must enrol again at their next sign-in. */
+usersRouter.post("/:id/reset-mfa", async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: String(req.params.id) }, select: { id: true, email: true, mfaEnabled: true } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    await prisma.user.update({ where: { id: user.id }, data: { mfaEnabled: false, mfaSecretEnc: null, mfaLastStep: null, mfaEnrolledAt: null, tokenVersion: { increment: 1 }, failedLoginCount: 0, lockedUntil: null } });
+    await prisma.mfaRecoveryCode.deleteMany({ where: { userId: user.id } });
+    await writeAudit(req, "MFA_RESET", "User", user.id, { mfaEnabled: user.mfaEnabled }, { mfaEnabled: false });
+    return res.json({ message: "Multi-factor authentication was reset. The user must set it up again at their next sign-in." });
   } catch (e) { return next(e); }
 });
