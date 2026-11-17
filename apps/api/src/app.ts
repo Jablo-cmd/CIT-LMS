@@ -1,9 +1,11 @@
 import express from "express";
-import helmet from "helmet";
+// Namespace/named imports (rather than default imports) type-check identically whether a toolchain resolves
+// these CommonJS-shipped packages as ESM or CJS; Vercel's TypeScript step resolves them differently to tsc here.
+import * as helmetModule from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
+import { rateLimit } from "express-rate-limit";
 import { ZodError } from "zod";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
@@ -26,7 +28,7 @@ import { HttpError } from "./errors.js";
 export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.NODE_ENV === "production" ? 1 : false);
-app.use(helmet());
+app.use(helmetModule.default());
 app.use(cors({ origin: config.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
