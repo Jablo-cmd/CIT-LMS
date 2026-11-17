@@ -5,6 +5,14 @@
 const configuredApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 const API_BASE_URL = configuredApiUrl.endsWith("/api") ? configuredApiUrl : `${configuredApiUrl}/api`;
 
+/** An API failure that carries the HTTP status so callers can react to it (for example a 401). */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
   const headers = new Headers(init.headers ?? {});
@@ -34,9 +42,14 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   }
 
+  if (response.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login") && window.location.pathname !== "/login") {
+    // The session has expired or been revoked: send the user to sign in instead of leaving an error on the page.
+    window.location.assign("/login?expired=1");
+  }
+
   if (!response.ok) {
     const message = typeof payload === "object" && payload && "error" in payload ? String((payload as { error?: string }).error ?? "Request failed") : `Request failed (${response.status})`;
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return (payload ?? undefined) as T;

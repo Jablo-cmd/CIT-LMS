@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../lib/api";
 
@@ -10,6 +10,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    setExpired(new URLSearchParams(window.location.search).has("expired"));
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,15 +39,14 @@ export default function LoginPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-brand">
-          <span className="brand-icon">C</span>
-          <div>
-            <strong>CIT-LMS</strong>
-            <small>People administration</small>
-          </div>
+          <img src="/brand/cit-logo.png" alt="CIT Business Solutions" className="auth-logo" />
         </div>
         <p className="eyebrow">SECURE WORKSPACE</p>
-        <h1>Welcome back</h1>
+        <h1>Sign in</h1>
         <p className="auth-intro">Sign in with your individual CIT-LMS account.</p>
+        {expired && !error && (
+          <p className="form-notice" role="status">Your session has ended. Please sign in again to continue.</p>
+        )}
         <form onSubmit={submit} className="auth-form">
           <label>
             Email address
